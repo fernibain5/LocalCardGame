@@ -187,3 +187,20 @@ img.resize {
 .hide {
     display: none;
 }
+
+.connected, .ready {
+  font-weight: normal;
+}
+
+.connected span,
+.ready span {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  background-color: red;
+}
+
+span.green {
+  background-color: green;
+}
+
