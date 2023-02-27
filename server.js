@@ -63,6 +63,7 @@ socketServer.on("connection", (socket) => {
     console.log(`Player ${playerIndex} disconnected`);
     delete gameState.players[playerIndex];
     connections[playerIndex] = null;
+    // if (connections === [null, null]) gameState.deck = require('./deck')
 
     //Tell everyone what player just disconnected
     socket.broadcast.emit("player-connection", playerIndex);
@@ -105,14 +106,12 @@ socketServer.on("connection", (socket) => {
   });
 
   socket.on("draw-card", () => {
-    if (connections !== [true, true]) {
-      let card = gameState.deck.pop();
-      // console.log("Card drawn: ", card);
-      // Check the length of the deck
-      // console.log("Deck length after draw: ", gameState.deck.length);
-      socket.emit("draw-card", card);
-      // socket.broadcast.emit("enemy-draw-card", card);
-    }
+    let card = gameState.deck.pop();
+    console.log("Card drawn: ", card);
+    // Check the length of the deck
+    console.log("Deck length after draw: ", gameState.deck.length);
+    socket.emit("draw-card", card);
+    socket.broadcast.emit("enemy-draw-card", card);
   });
 
   socket.on("change-player", () => {
@@ -138,9 +137,6 @@ socketServer.on("connection", (socket) => {
     socket.broadcast.emit("enemy-drop-card", dropCardObj["idTarget"]);
   });
 
-  socket.on("enemy-to-act", () => {
-    socket.broadcast.emit("enemy-to-act");
-  });
 });
 
 // app.use("/api/users", userRoutes);

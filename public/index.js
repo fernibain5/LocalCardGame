@@ -1,4 +1,6 @@
 const turnEl = document.getElementById("turn");
+const board = document.querySelector(".board");
+
 // Select empty deck placeholder
 const deckPlaceholder = document.querySelector(".container-row");
 
@@ -84,8 +86,79 @@ function startMultiPlayer() {
     console.log(targetParent);
     targetParent.appendChild(enemyCardEl);
   });
-  socket.on("enemy-to-act", () => {
-    playMulti(socket);
+
+  socket.on("draw-5-cards", (initialCards) => {
+    const boxes = document.querySelectorAll(`.line1${currentPlayer + 1}`);
+
+    boxes.forEach((cardPlaceholder, i) => {
+      const card = initialCards[i];
+      const newDiv = document.createElement("div");
+
+      const newImg = document.createElement("img");
+      newImg.src = `images/${card["id"]}.webp`;
+      newImg.draggable = false;
+      newImg.className = "container";
+      newImg.id = cardPlaceholder["id"];
+
+      newDiv.appendChild(newImg);
+      cardPlaceholder.appendChild(newDiv);
+    });
+  });
+
+  socket.on("draw-card", (card) => {
+    userCardDrawn = card;
+    newDiv = document.createElement("div");
+    newDiv.className = "layer1";
+
+    const newImg = document.createElement("img");
+    newImg.src = `images/${card["id"]}.webp`;
+    newImg.draggable = true;
+    newImg.className = "container";
+    newImg.id = card["id"];
+
+    newDiv.appendChild(newImg);
+    console.log(newImg);
+    deckPlaceholder.appendChild(newDiv);
+
+    // attach the dragstart event handler
+    newImg.addEventListener("dragstart", dragStart);
+  });
+  socket.on("enemy-5-cards", (enemyInitialCardsObj) => {
+    const boxes = document.querySelectorAll(
+      `.line1${parseInt(enemyInitialCardsObj["playerIndex"]) + 1}`
+    );
+
+    boxes.forEach((cardPlaceholder, i) => {
+      const card = enemyInitialCardsObj["initialCards"][i];
+      const newDiv = document.createElement("div");
+
+      const newImg = document.createElement("img");
+      newImg.src = `images/${card["id"]}.webp`;
+      newImg.draggable = false;
+      newImg.className = "container";
+      newImg.id = cardPlaceholder["id"];
+
+      newDiv.appendChild(newImg);
+      cardPlaceholder.appendChild(newDiv);
+    });
+  });
+
+  socket.on("enemy-draw-card", (card) => {
+    enemyCardDrawn = card;
+    const newDiv = document.createElement("div");
+    newDiv.className = "layer1";
+
+    const newImg = document.createElement("img");
+    newImg.src = `images/${card["id"]}.webp`;
+    newImg.className = "container";
+    newImg.id = card["id"];
+
+    newDiv.appendChild(newImg);
+    deckPlaceholder.appendChild(newDiv);
+  });
+  socket.on("change-player", (changedPlayer) => {
+    playerTurn = changedPlayer;
+    playMulti(socket)
   });
 }
 
@@ -110,108 +183,9 @@ function playMulti(socket) {
 
   if (enemyReady) {
     console.log("playerTurn: ", playerTurn);
-    socket.emit("player-turn");
-    socket.on("player-turn", (num) => (playerTurn = parseInt(num)));
-    // socket.on("enemy-card-placed", (enemyCardPlacedObj) => {});
-    socket.on("enemy-5-cards", (enemyInitialCardsObj) => {
-      const boxes = document.querySelectorAll(
-        `.line1${parseInt(enemyInitialCardsObj["playerIndex"]) + 1}`
-      );
-
-      boxes.forEach((cardPlaceholder, i) => {
-        const card = enemyInitialCardsObj["initialCards"][i];
-        const newDiv = document.createElement("div");
-
-        const newImg = document.createElement("img");
-        newImg.src = `images/${card["id"]}.webp`;
-        newImg.draggable = false;
-        newImg.className = "container";
-        newImg.id = cardPlaceholder["id"];
-
-        newDiv.appendChild(newImg);
-        cardPlaceholder.appendChild(newDiv);
-      });
-    });
-    socket.on("draw-5-cards", (initialCards) => {
-      const boxes = document.querySelectorAll(`.line1${currentPlayer + 1}`);
-
-      boxes.forEach((cardPlaceholder, i) => {
-        const card = initialCards[i];
-        const newDiv = document.createElement("div");
-
-        const newImg = document.createElement("img");
-        newImg.src = `images/${card["id"]}.webp`;
-        newImg.draggable = false;
-        newImg.className = "container";
-        newImg.id = cardPlaceholder["id"];
-
-        newDiv.appendChild(newImg);
-        cardPlaceholder.appendChild(newDiv);
-      });
-    });
-    // socket.on("enemy-draw-card", (card) => {
-    //   enemyCardDrawn = card;
-    //   const newDiv = document.createElement("div");
-    //   newDiv.className = "layer1";
-
-    //   const newImg = document.createElement("img");
-    //   newImg.src = `images/${card["id"]}.webp`;
-    //   newImg.className = "container";
-    //   newImg.id = card["id"];
-
-    //   newDiv.appendChild(newImg);
-    //   deckPlaceholder.appendChild(newDiv);
-    // });
-    socket.on("change-player", (changedPlayer) => {
-      playerTurn = changedPlayer;
-      // returns Boolean if all currentLine CardPlaceholders of the player have a child (img tag of a card)
-      let isNextLine = doesAllHaveAChild();
-
-      // if isNextLine True, proceed to the next line of player, it caps at 5.
-      if (isNextLine && currentLine < 5) currentLine++;
-
-      // each cardPlaceholder has a class describing its placing. Example of player 1 line 3: "line31"
-      lineClass = `.line${
-        currentLine.toString() + (currentPlayer + 1).toString()
-      }`;
-
-      // add events listeners for the player to be able to drag/drop its card his current active line
-      // if (deck.length !== 0)
-      addEventsToALine(lineClass);
-      console.log("events added successfully");
-    });
 
     if (isGameJustStarted === true) {
-      const board = document.querySelector(".board");
-
-      // Creates two players boards
-      for (let i = 0; i < 2; i++) {
-        let playerBoard = document.createElement("div");
-        playerBoard.className = "player-board";
-        // Creates 5 drop-targets poker hands per player
-        for (let h = 0; h < 5; h++) {
-          let dropTarget = document.createElement("div");
-          dropTarget.className = "drop-targets";
-          // Adds to each poker hands its line and which player in a class
-          for (var j = 0; j < 5; j++) {
-            let lineNumber;
-            if (i === 0) {
-              lineNumber = `line${(5 - h).toString() + (i + 1).toString()}`;
-            } else {
-              lineNumber = `line${(h + 1).toString() + (i + 1).toString()}`;
-            }
-            let placeholder = document.createElement("div");
-            let id = `${h.toString() + j.toString()}p${(i + 1).toString()}`;
-
-            placeholder.className = `card-placeholder ${lineNumber}`;
-            placeholder.id = id;
-
-            dropTarget.appendChild(placeholder);
-          }
-          playerBoard.appendChild(dropTarget);
-        }
-        board.appendChild(playerBoard);
-      }
+      createPlayersBoard()
 
       socket.emit("draw-5-cards");
       isGameJustStarted = false;
@@ -220,43 +194,26 @@ function playMulti(socket) {
     if (currentPlayer === playerTurn) {
       console.log("starting player action");
       socket.emit("draw-card");
-      socket.on("draw-card", (card) => {
-        userCardDrawn = card;
-        const newDiv = document.createElement("div");
-        newDiv.className = "layer1";
-
-        const newImg = document.createElement("img");
-        newImg.src = `images/${card["id"]}.webp`;
-        newImg.draggable = true;
-        newImg.className = "container";
-        newImg.id = card["id"];
-
-        newDiv.appendChild(newImg);
-        console.log(newImg);
-        deckPlaceholder.appendChild(newDiv);
-
-        // attach the dragstart event handler
-        newImg.addEventListener("dragstart", dragStart);
-      });
-
-      const cardBoxes = document.querySelectorAll(
-        `.line${currentLine}${currentPlayer + 1}`
-      );
-      console.dir(cardBoxes);
-
       turnEl.innerHTML = "Your Go";
 
-      cardBoxes.forEach((cardPlaceholder) => {
-        cardPlaceholder.addEventListener("dragenter", dragEnter);
-        cardPlaceholder.addEventListener("dragover", dragOver);
-        cardPlaceholder.addEventListener("dragleave", dragLeave);
-        cardPlaceholder.addEventListener("drop", drop);
-      });
+
+      // returns Boolean if all currentLine CardPlaceholders of the player have a child (img tag of a card)
+      let isNextLine = doesAllHaveAChild();
+
+      // if isNextLine True, proceed to the next line of player, it caps at 5.
+      if (isNextLine && currentLine < 5) currentLine++;
+
+      // each cardPlaceholder has a class describing its placing. Example of player 1 line 3: "line31"
+      let lineClass = `.line${currentLine.toString() + (currentPlayer + 1).toString()
+        }`;
+
+      // add events listeners for the player to be able to drag/drop its card his current active line
+      addEventsToALine(lineClass);
     }
   }
   function drop(e) {
     console.log("drop is starting");
-    // e.preventDefault();
+    e.preventDefault();
     // clearTimeout(timerId);
     // timeLeft = 100;
     // startTimer();
@@ -270,8 +227,6 @@ function playMulti(socket) {
     socket.emit("drop-card", { userCardDrawn, idTarget });
     console.log("card just dropped and sent to server");
 
-    // gameState[currentPlayer][idNumOfTarget];
-
     //creates a back of a card img
     // const backCard = document.createElement("img");
     // backCard.classList.add("container");
@@ -283,15 +238,6 @@ function playMulti(socket) {
     const draggable = document.getElementById(id);
     const draggableParent = draggable.parentElement;
 
-    // When final two cards left, removes the card to be swap if player decides to swap.
-    // if (deck.length < 2) {
-    //   target.removeChild(target.firstChild);
-    // }
-    // if (currentPlayer === 2 && deck.length < 11) {
-    //   deckHolder.removeChild(draggableParent);
-    //   target.appendChild(backCard);
-    // } else {
-    // display the draggable element
     draggable.classList.remove("hide");
     draggable.classList.remove("layer");
     draggable.draggable = false;
@@ -301,40 +247,18 @@ function playMulti(socket) {
     // drop card in the cardPlaceholder
     target.appendChild(draggable);
     // }
-
-    // remove current player events, switch to the other player and enable its cardplaceholders events
-    // removeAndAddEvents(socket);
-    let lineClass = `.line${
-      currentLine.toString() + (currentPlayer + 1).toString()
-    }`;
+    let lineClass = `.line${currentLine}${currentPlayer + 1}`;
     console.log("line class to remove: ", lineClass);
+    removeEventsToALine(lineClass)
 
-    // removes active drag/drop events listeners of current players
-    removeEventsToALine(lineClass);
+
     socket.emit("change-player");
     console.log("change player successfully");
-    socket.emit("enemy-to-act");
+
+    // socket.emit("enemy-to-act");
   }
 
-  function removeAndAddEvents(socket) {
-    // change turn to the other player
-    currentPlayer = (currentPlayer + 1) % 2;
 
-    // returns Boolean if all currentLine CardPlaceholders of the player have a child (img tag of a card)
-    let isNextLine = doesAllHaveAChild();
-
-    // if isNextLine True, proceed to the next line of player, it caps at 5.
-    if (isNextLine && currentLine < 5) currentLine++;
-
-    // each cardPlaceholder has a class describing its placing. Example of player 1 line 3: "line31"
-
-    // add events listeners for the player to be able to drag/drop its card his current active line
-    // if (deck.length !== 0)
-    addEventsToALine(lineClass);
-
-    // Update player's turn h1 tag
-    h1El.innerText = `Player ${currentPlayer.toString()}`;
-  }
   function addEventsToALine(lineClass) {
     const cardPlaceholdersToAdd = document.querySelectorAll(lineClass);
 
@@ -360,6 +284,37 @@ function playMulti(socket) {
       cardPlaceholder.removeEventListener("drop", drop);
       cardPlaceholder.style.borderColor = "gray";
     });
+  }
+}
+
+function createPlayersBoard() {
+  // Creates two players boards
+  for (let i = 0; i < 2; i++) {
+    let playerBoard = document.createElement("div");
+    playerBoard.className = "player-board";
+    // Creates 5 drop-targets poker hands per player
+    for (let h = 0; h < 5; h++) {
+      let dropTarget = document.createElement("div");
+      dropTarget.className = "drop-targets";
+      // Adds to each poker hands its line and which player in a class
+      for (var j = 0; j < 5; j++) {
+        let lineNumber;
+        if (i === 0) {
+          lineNumber = `line${(5 - h).toString() + (i + 1).toString()}`;
+        } else {
+          lineNumber = `line${(h + 1).toString() + (i + 1).toString()}`;
+        }
+        let placeholder = document.createElement("div");
+        let id = `${h.toString() + j.toString()}p${(i + 1).toString()}`;
+
+        placeholder.className = `card-placeholder ${lineNumber}`;
+        placeholder.id = id;
+
+        dropTarget.appendChild(placeholder);
+      }
+      playerBoard.appendChild(dropTarget);
+    }
+    board.appendChild(playerBoard);
   }
 }
 
