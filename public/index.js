@@ -1,37 +1,31 @@
 const turnEl = document.getElementById("turn");
 const board = document.querySelector(".board");
-
+const playBtn = document.querySelector("#play");
+const readyBtn = document.querySelector("#ready-btn");
 // Select empty deck placeholder
 const deckPlaceholder = document.querySelector(".container-row");
 
-// Players: 1 and 2
-let currentPlayer;
+let currentPlayer = null;
+let timer = 10;
 let enemyCardDrawn;
 let userCardDrawn;
-
+let playerCardEle;
 let connectedPlayer = "user";
 let ready = false;
 let enemyReady = false;
 let isGameOver = false;
 let isGameJustStarted = true;
 let playerTurn = 0;
+let deckLength = 42;
 
 // At the beginning, line 1 of both players are filled, so it starts at line 2
 let currentLine = 2;
 
-// Setting default line class: player 1 in line 2
-// let lineClass = `.line${currentLine.toString() + currentPlayer.toString()}`;
-
-// Div element where all cards are stack up together
-const deckHolder = document.querySelector(".container-row");
-
-// Timer variables
-var timerId,
-  timeLeft = 100;
-
-const h1El = document.querySelector("#turn");
-const playBtn = document.querySelector("#play");
-const readyBtn = document.querySelector("#ready-btn");
+//creates a back of a card img
+const backCard = document.createElement("img");
+backCard.classList.add("container");
+backCard.src = "images/backImage.webp";
+backCard.draggable = false;
 
 playBtn.addEventListener("click", startMultiPlayer);
 
@@ -43,7 +37,7 @@ function startMultiPlayer() {
   //Get your player number
   socket.on("player-number", (num) => {
     if (num === -1) {
-      h1El.innerHTML = "Sorry, the server is full";
+      turnEl.innerHTML = "Sorry, the server is full";
     } else {
       currentPlayer = parseInt(num);
       if (currentPlayer === 1) {
@@ -76,14 +70,12 @@ function startMultiPlayer() {
     if (ready) playMulti(socket);
   });
   socket.on("enemy-drop-card", (idTarget) => {
-    console.log(enemyCardDrawn["id"]);
     const enemyCardEl = document.getElementById(`${enemyCardDrawn["id"]}`);
-    console.log(enemyCardEl);
     const currentParent = enemyCardEl.parentElement;
-    deckHolder.removeChild(currentParent);
+    deckPlaceholder.removeChild(currentParent);
 
     const targetParent = document.getElementById(`${idTarget}`);
-    console.log(targetParent);
+
     targetParent.appendChild(enemyCardEl);
   });
 
@@ -105,23 +97,27 @@ function startMultiPlayer() {
     });
   });
 
-  socket.on("draw-card", (card) => {
-    userCardDrawn = card;
+  socket.on("draw-card", (drawCardObj) => {
+    userCardDrawn = drawCardObj.card;
+
     newDiv = document.createElement("div");
     newDiv.className = "layer1";
 
-    const newImg = document.createElement("img");
-    newImg.src = `images/${card["id"]}.webp`;
-    newImg.draggable = true;
-    newImg.className = "container";
-    newImg.id = card["id"];
+    playerCardEle = document.createElement("img");
+    playerCardEle.src = `images/${drawCardObj.card["id"]}.webp`;
+    playerCardEle.draggable = true;
+    playerCardEle.className = "container";
+    playerCardEle.id = card["id"];
 
-    newDiv.appendChild(newImg);
-    console.log(newImg);
+    newDiv.appendChild(playerCardEle);
+    console.log(playerCardEle);
     deckPlaceholder.appendChild(newDiv);
 
     // attach the dragstart event handler
-    newImg.addEventListener("dragstart", dragStart);
+    playerCardEle.addEventListener("dragstart", dragStart);
+
+
+
   });
   socket.on("enemy-5-cards", (enemyInitialCardsObj) => {
     const boxes = document.querySelectorAll(
@@ -143,23 +139,74 @@ function startMultiPlayer() {
     });
   });
 
-  socket.on("enemy-draw-card", (card) => {
-    enemyCardDrawn = card;
+  socket.on("enemy-draw-card", (enemyDrawObj) => {
+
     const newDiv = document.createElement("div");
     newDiv.className = "layer1";
+    if (enemyDrawObj.deckLength > 11) {
+      enemyCardDrawn = enemyDrawObj.card;
 
-    const newImg = document.createElement("img");
-    newImg.src = `images/${card["id"]}.webp`;
-    newImg.className = "container";
-    newImg.id = card["id"];
+      const newImg = document.createElement("img");
+      newImg.src = `images/${enemyCardDrawn["id"]}.webp`;
+      newImg.className = "container";
+      newImg.id = enemyCardDrawn["id"];
 
-    newDiv.appendChild(newImg);
-    deckPlaceholder.appendChild(newDiv);
+      newDiv.appendChild(newImg);
+      deckPlaceholder.appendChild(newDiv);
+    } else {
+      const backCard = document.createElement("img");
+      backCard.classList.add("container");
+      backCard.src = "images/backImage.webp";
+      backCard.draggable = false;
+      backCard.id = enemyCardDrawn["id"];
+      newDiv.appendChild(backCard);
+      deckPlaceholder.append(newDiv);
+    }
+    deckLength--;
   });
   socket.on("change-player", (changedPlayer) => {
     playerTurn = changedPlayer;
     playMulti(socket)
   });
+
+  socket.on("timer-update", (countdown) => {
+    timer = countdown;
+    updateTimer();
+  });
+
+  socket.on('auto-place-card', () => {
+    const cardParentEle = playerCardEle.parentElement
+    const classPlaceholders = `.line${currentLine}${currentPlayer + 1}`;
+
+    const playerCardPlaceholders = document.querySelectorAll(classPlaceholders);
+
+    playerCardPlaceholders.forEach((cardPlaceholder) => {
+      cardPlaceholder.removeEventListener("dragenter", dragEnter);
+      cardPlaceholder.removeEventListener("dragover", dragOver);
+      cardPlaceholder.removeEventListener("dragleave", dragLeave);
+      cardPlaceholder.style.borderColor = "gray";
+    });
+
+
+    for (var i = 0; i < playerCardPlaceholders.length; i++) {
+      if (!playerCardPlaceholders[i].hasChildNodes()) {
+        const idTarget = playerCardPlaceholders[i].id;
+        playerCardPlaceholders[i].appendChild(playerCardEle);
+        socket.emit('drop-card', { userCardDrawn, idTarget })
+        break;
+      }
+    }
+    deckPlaceholder.removeChild(cardParentEle);
+
+    timer = 10;
+    console.log('timer update: ', timer)
+    updateTimer()
+
+  })
+}
+
+function updateTimer() {
+  document.getElementById("timer").innerHTML = timer;
 }
 
 function playerConnectedOrDisconnected(num) {
@@ -191,9 +238,18 @@ function playMulti(socket) {
       isGameJustStarted = false;
     }
 
-    if (currentPlayer === playerTurn) {
+    if (deckLength <= 2) {
+      const swap = window.confirm(`Do you want to swap your last card that is ${userCardDrawn.rank} of ${userCardDrawn.suit}?`);
+      if (swap) {
+
+      } else {
+
+      }
+    } else if (currentPlayer === playerTurn) {
       console.log("starting player action");
       socket.emit("draw-card");
+      deckLength--;
+      socket.emit('start-timer', playerTurn)
       turnEl.innerHTML = "Your Go";
 
 
@@ -214,9 +270,9 @@ function playMulti(socket) {
   function drop(e) {
     console.log("drop is starting");
     e.preventDefault();
-    // clearTimeout(timerId);
-    // timeLeft = 100;
-    // startTimer();
+
+    timer = 10;
+    updateTimer();
 
     // get CardPlaceholder
     let target = e.currentTarget;
@@ -226,12 +282,6 @@ function playMulti(socket) {
 
     socket.emit("drop-card", { userCardDrawn, idTarget });
     console.log("card just dropped and sent to server");
-
-    //creates a back of a card img
-    // const backCard = document.createElement("img");
-    // backCard.classList.add("container");
-    // backCard.src = "images/backImage.webp";
-    // backCard.draggable = false;
 
     // get the draggable element
     const id = e.dataTransfer.getData("text/plain");
@@ -243,7 +293,7 @@ function playMulti(socket) {
     draggable.draggable = false;
     console.log("draggable ID: ", id);
 
-    deckHolder.removeChild(draggableParent);
+    deckPlaceholder.removeChild(draggableParent);
     // drop card in the cardPlaceholder
     target.appendChild(draggable);
     // }
@@ -255,7 +305,6 @@ function playMulti(socket) {
     socket.emit("change-player");
     console.log("change player successfully");
 
-    // socket.emit("enemy-to-act");
   }
 
 
@@ -275,7 +324,6 @@ function playMulti(socket) {
 
   function removeEventsToALine(lineClass) {
     const cardPlaceholdersToRemove = document.querySelectorAll(lineClass);
-    console.dir(cardPlaceholdersToRemove);
 
     cardPlaceholdersToRemove.forEach((cardPlaceholder) => {
       cardPlaceholder.removeEventListener("dragenter", dragEnter);
@@ -379,7 +427,7 @@ function playerReady(num) {
 //       break;
 //     }
 //   }
-//   deckHolder.removeChild(cardParentDiv);
+//   deckPlaceholder.removeChild(cardParentDiv);
 
 //   removeAndAddEvents();
 
@@ -424,7 +472,7 @@ function playerReady(num) {
 //     if (winCount > loseCount) resultPlayerOne = "Won";
 //     if (winCount < loseCount) resultPlayerOne = "Lost";
 
-//     h1El.innerText = `Player 1 has ${resultPlayerOne} the game.`;
+//     turnEl.innerText = `Player 1 has ${resultPlayerOne} the game.`;
 //   }
 // }
 

@@ -4,6 +4,7 @@ const port = process.env.PORT || 3000;
 let cors = require("cors");
 const http = require("http");
 const socketIO = require("socket.io");
+const { emit } = require("process");
 const app = express();
 const httpServer = http.createServer(app);
 
@@ -31,7 +32,14 @@ const gameState = {
   },
   deck: require("./deck"),
   currentTurn: 0,
+  timers: {
+    0: 30,
+    1: 30,
+  },
 };
+
+let interval;
+let countdown = 10;
 
 socketServer.on("connection", (socket) => {
   let playerIndex = -1;
@@ -110,23 +118,18 @@ socketServer.on("connection", (socket) => {
     console.log("Card drawn: ", card);
     // Check the length of the deck
     console.log("Deck length after draw: ", gameState.deck.length);
-    socket.emit("draw-card", card);
+    socket.emit("draw-card", { card, deckLength: gameState.deck.length });
     socket.broadcast.emit("enemy-draw-card", card);
   });
 
   socket.on("change-player", () => {
-    console.log("Player Index: ", playerIndex);
     gameState.players.playerIndex.currentPlayer;
     // Change the player turn
-    console.log("gameState before: ", gameState.currentTurn);
     gameState.currentTurn = (gameState.currentTurn + 1) % 2;
     console.log("GameState im passing: ", gameState.currentTurn);
     console.log(playerIndex !== gameState.currentTurn);
-    if (!Object.is(playerIndex, gameState.currentTurn)) {
-      socket.broadcast.emit("change-player", gameState.currentTurn);
-    } else {
-      console.log("i dont know why im printing but here i am");
-    }
+    socket.broadcast.emit("change-player", gameState.currentTurn);
+
   });
 
   socket.on("drop-card", (dropCardObj) => {
@@ -134,9 +137,34 @@ socketServer.on("connection", (socket) => {
     gameState.players.playerIndex.hands[columnDropped].push(
       dropCardObj["userCardDrawn"]
     );
+    console.log("DROP IDTARGET: ", dropCardObj["idTarget"]);
     socket.broadcast.emit("enemy-drop-card", dropCardObj["idTarget"]);
   });
 
-});
+  socket.on("start-timer", (_) => {
+    if (interval) {
+      clearInterval(interval);
+    }
+
+    // Start the countdown timer
+    interval = setInterval(() => {
+      countdown--;
+      socket.emit('timer-update', countdown);
+
+      // If the countdown reaches 0, switch to the next player
+      if (countdown === 0) {
+        countdown = 10;
+        gameState.currentTurn = (gameState.currentTurn + 1) % 2;
+        socket.emit('auto-place-card', gameState.deck.length)
+        socket.broadcast.emit('change-player', gameState.currentTurn);
+      }
+    }, 10);
+  });
+
+
+})
+
+
+
 
 // app.use("/api/users", userRoutes);
