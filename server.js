@@ -4,7 +4,6 @@ const port = process.env.PORT || 3000;
 let cors = require("cors");
 const http = require("http");
 const socketIO = require("socket.io");
-const { emit } = require("process");
 const app = express();
 const httpServer = http.createServer(app);
 
@@ -32,10 +31,6 @@ const gameState = {
   },
   deck: require("./deck"),
   currentTurn: 0,
-  timers: {
-    0: 30,
-    1: 30,
-  },
 };
 
 let interval;
@@ -119,7 +114,10 @@ socketServer.on("connection", (socket) => {
     // Check the length of the deck
     console.log("Deck length after draw: ", gameState.deck.length);
     socket.emit("draw-card", { card, deckLength: gameState.deck.length });
-    socket.broadcast.emit("enemy-draw-card", card);
+    socket.broadcast.emit("enemy-draw-card", {
+      card,
+      deckLength: gameState.deck.length,
+    });
   });
 
   socket.on("change-player", () => {
@@ -129,7 +127,6 @@ socketServer.on("connection", (socket) => {
     console.log("GameState im passing: ", gameState.currentTurn);
     console.log(playerIndex !== gameState.currentTurn);
     socket.broadcast.emit("change-player", gameState.currentTurn);
-
   });
 
   socket.on("drop-card", (dropCardObj) => {
@@ -141,7 +138,7 @@ socketServer.on("connection", (socket) => {
     socket.broadcast.emit("enemy-drop-card", dropCardObj["idTarget"]);
   });
 
-  socket.on("start-timer", (_) => {
+  socket.on("start-timer", () => {
     if (interval) {
       clearInterval(interval);
     }
@@ -149,22 +146,26 @@ socketServer.on("connection", (socket) => {
     // Start the countdown timer
     interval = setInterval(() => {
       countdown--;
-      socket.emit('timer-update', countdown);
+      socket.emit("timer-update", countdown);
 
       // If the countdown reaches 0, switch to the next player
-      if (countdown === 0) {
+      if (countdown <= 0 && gameState.deck.length > 1) {
         countdown = 10;
         gameState.currentTurn = (gameState.currentTurn + 1) % 2;
-        socket.emit('auto-place-card', gameState.deck.length)
-        socket.broadcast.emit('change-player', gameState.currentTurn);
+        if (gameState.deck.length > 1) {
+          console.log(
+            `AutoPlaceEvent, deckLength is: ${gameState.deck.length}`
+          );
+          socket.emit("auto-place-card", gameState.deck.length);
+        }
+        socket.broadcast.emit("change-player", gameState.currentTurn);
       }
     }, 10);
   });
 
+  socket.on("stop-timer", () => {
+    clearInterval(interval);
+  });
+});
 
-})
-
-
-
-
-// app.use("/api/users", userRoutes);
+// app.use("/api/users", userRoutes)

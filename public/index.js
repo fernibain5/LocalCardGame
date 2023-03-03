@@ -2,6 +2,10 @@ const turnEl = document.getElementById("turn");
 const board = document.querySelector(".board");
 const playBtn = document.querySelector("#play");
 const readyBtn = document.querySelector("#ready-btn");
+const displaySwapDiv = document.getElementById("swap");
+const confirmSwapBtn = document.querySelector("#swap-yes");
+const declineSwapBtn = document.querySelector("#swap-no");
+
 // Select empty deck placeholder
 const deckPlaceholder = document.querySelector(".container-row");
 
@@ -16,7 +20,8 @@ let enemyReady = false;
 let isGameOver = false;
 let isGameJustStarted = true;
 let playerTurn = 0;
-let deckLength = 42;
+let deckLength = 52;
+let lineClass;
 
 // At the beginning, line 1 of both players are filled, so it starts at line 2
 let currentLine = 2;
@@ -72,10 +77,10 @@ function startMultiPlayer() {
   socket.on("enemy-drop-card", (idTarget) => {
     const enemyCardEl = document.getElementById(`${enemyCardDrawn["id"]}`);
     const currentParent = enemyCardEl.parentElement;
-    deckPlaceholder.removeChild(currentParent);
-
     const targetParent = document.getElementById(`${idTarget}`);
+    if (deckLength > 2) deckPlaceholder.removeChild(currentParent);
 
+    if (deckLength <= 2) currentParent.innerHTML = "";
     targetParent.appendChild(enemyCardEl);
   });
 
@@ -99,6 +104,7 @@ function startMultiPlayer() {
 
   socket.on("draw-card", (drawCardObj) => {
     userCardDrawn = drawCardObj.card;
+    deckLength = drawCardObj.deckLength;
 
     newDiv = document.createElement("div");
     newDiv.className = "layer1";
@@ -107,17 +113,13 @@ function startMultiPlayer() {
     playerCardEle.src = `images/${drawCardObj.card["id"]}.webp`;
     playerCardEle.draggable = true;
     playerCardEle.className = "container";
-    playerCardEle.id = card["id"];
+    playerCardEle.id = userCardDrawn["id"];
 
     newDiv.appendChild(playerCardEle);
-    console.log(playerCardEle);
     deckPlaceholder.appendChild(newDiv);
 
     // attach the dragstart event handler
     playerCardEle.addEventListener("dragstart", dragStart);
-
-
-
   });
   socket.on("enemy-5-cards", (enemyInitialCardsObj) => {
     const boxes = document.querySelectorAll(
@@ -139,12 +141,12 @@ function startMultiPlayer() {
     });
   });
 
-  socket.on("enemy-draw-card", (enemyDrawObj) => {
-
+  socket.on("enemy-draw-card", (cardObj) => {
     const newDiv = document.createElement("div");
     newDiv.className = "layer1";
-    if (enemyDrawObj.deckLength > 11) {
-      enemyCardDrawn = enemyDrawObj.card;
+    deckLength = cardObj.deckLength;
+    if (cardObj.deckLength > 11) {
+      enemyCardDrawn = cardObj.card;
 
       const newImg = document.createElement("img");
       newImg.src = `images/${enemyCardDrawn["id"]}.webp`;
@@ -162,11 +164,10 @@ function startMultiPlayer() {
       newDiv.appendChild(backCard);
       deckPlaceholder.append(newDiv);
     }
-    deckLength--;
   });
   socket.on("change-player", (changedPlayer) => {
     playerTurn = changedPlayer;
-    playMulti(socket)
+    playMulti(socket);
   });
 
   socket.on("timer-update", (countdown) => {
@@ -174,9 +175,11 @@ function startMultiPlayer() {
     updateTimer();
   });
 
-  socket.on('auto-place-card', () => {
-    const cardParentEle = playerCardEle.parentElement
+  socket.on("auto-place-card", () => {
+    const cardParentEle = playerCardEle.parentElement;
+    console.log("Player card: ", playerCardEle);
     const classPlaceholders = `.line${currentLine}${currentPlayer + 1}`;
+    console.log("lineClass: ", lineClass);
 
     const playerCardPlaceholders = document.querySelectorAll(classPlaceholders);
 
@@ -187,22 +190,20 @@ function startMultiPlayer() {
       cardPlaceholder.style.borderColor = "gray";
     });
 
-
     for (var i = 0; i < playerCardPlaceholders.length; i++) {
       if (!playerCardPlaceholders[i].hasChildNodes()) {
         const idTarget = playerCardPlaceholders[i].id;
         playerCardPlaceholders[i].appendChild(playerCardEle);
-        socket.emit('drop-card', { userCardDrawn, idTarget })
+        socket.emit("drop-card", { userCardDrawn, idTarget });
+        console.log("i was dropped");
         break;
       }
     }
     deckPlaceholder.removeChild(cardParentEle);
 
     timer = 10;
-    console.log('timer update: ', timer)
-    updateTimer()
-
-  })
+    updateTimer();
+  });
 }
 
 function updateTimer() {
@@ -229,46 +230,60 @@ function playMulti(socket) {
   }
 
   if (enemyReady) {
-    console.log("playerTurn: ", playerTurn);
-
     if (isGameJustStarted === true) {
-      createPlayersBoard()
+      createPlayersBoard();
 
       socket.emit("draw-5-cards");
       isGameJustStarted = false;
     }
 
-    if (deckLength <= 2) {
-      const swap = window.confirm(`Do you want to swap your last card that is ${userCardDrawn.rank} of ${userCardDrawn.suit}?`);
-      if (swap) {
+    // if (deckLength <= 2) {
+    //   const swap = window.confirm(
+    //     `Do you want to swap your last card that is ${userCardDrawn.rank} of ${userCardDrawn.suit}?`
+    //   );
+    //   if (swap) {
+    //   } else {
+    //   }
+    // } else
+    if (currentPlayer === playerTurn) {
+      if (deckLength === 0) {
+      } else if (deckLength <= 2) {
+        socket.emit("stop-timer");
+        socket.emit("draw-card");
+        displaySwapDiv.style.display = "inline-block";
 
+        confirmSwapBtn.addEventListener("click", () => {
+          displaySwapDiv.style.display = "none";
+          lineClass = `.line${currentLine}${currentPlayer + 1}`;
+          addEventsToALine(lineClass);
+        });
+
+        declineSwapBtn.addEventListener("click", () => {
+          displaySwapDiv.style.display = "none";
+          deckPlaceholder.innerHTML = "";
+          socket.emit("change-player");
+        });
       } else {
+        socket.emit("draw-card");
+        socket.emit("start-timer");
+        console.log(`deck length: ${deckLength}`);
+        turnEl.innerHTML = "Your Go";
 
+        // returns Boolean if all currentLine CardPlaceholders of the player have a child (img tag of a card)
+        let isNextLine = doesAllHaveAChild();
+
+        // if isNextLine True, proceed to the next line of player, it caps at 5.
+        if (isNextLine && currentLine < 5) currentLine++;
+
+        // each cardPlaceholder has a class describing its placing. Example of player 1 line 3: "line31"
+        lineClass = `.line${currentLine}${currentPlayer + 1}`;
+
+        // add events listeners for the player to be able to drag/drop its card his current active line
+        addEventsToALine(lineClass);
       }
-    } else if (currentPlayer === playerTurn) {
-      console.log("starting player action");
-      socket.emit("draw-card");
-      deckLength--;
-      socket.emit('start-timer', playerTurn)
-      turnEl.innerHTML = "Your Go";
-
-
-      // returns Boolean if all currentLine CardPlaceholders of the player have a child (img tag of a card)
-      let isNextLine = doesAllHaveAChild();
-
-      // if isNextLine True, proceed to the next line of player, it caps at 5.
-      if (isNextLine && currentLine < 5) currentLine++;
-
-      // each cardPlaceholder has a class describing its placing. Example of player 1 line 3: "line31"
-      let lineClass = `.line${currentLine.toString() + (currentPlayer + 1).toString()
-        }`;
-
-      // add events listeners for the player to be able to drag/drop its card his current active line
-      addEventsToALine(lineClass);
     }
   }
   function drop(e) {
-    console.log("drop is starting");
     e.preventDefault();
 
     timer = 10;
@@ -281,7 +296,6 @@ function playMulti(socket) {
     const idTarget = target.id;
 
     socket.emit("drop-card", { userCardDrawn, idTarget });
-    console.log("card just dropped and sent to server");
 
     // get the draggable element
     const id = e.dataTransfer.getData("text/plain");
@@ -291,32 +305,69 @@ function playMulti(socket) {
     draggable.classList.remove("hide");
     draggable.classList.remove("layer");
     draggable.draggable = false;
-    console.log("draggable ID: ", id);
 
     deckPlaceholder.removeChild(draggableParent);
+
     // drop card in the cardPlaceholder
     target.appendChild(draggable);
     // }
-    let lineClass = `.line${currentLine}${currentPlayer + 1}`;
-    console.log("line class to remove: ", lineClass);
-    removeEventsToALine(lineClass)
-
+    lineClass = `.line${currentLine}${currentPlayer + 1}`;
+    removeEventsToALine(lineClass);
 
     socket.emit("change-player");
-    console.log("change player successfully");
-
   }
 
+  function dropSwap(e) {
+    e.preventDefault();
+
+    // timer = 10;
+    // updateTimer();
+
+    // get CardPlaceholder
+    let target = e.currentTarget;
+    target.classList.remove("drag-over");
+
+    const idTarget = target.id;
+
+    socket.emit("drop-card", { userCardDrawn, idTarget });
+
+    // get the draggable element
+    const id = e.dataTransfer.getData("text/plain");
+    const draggable = document.getElementById(id);
+    const draggableParent = draggable.parentElement;
+
+    draggable.classList.remove("hide");
+    draggable.classList.remove("layer");
+    draggable.draggable = false;
+
+    deckPlaceholder.innerHTML = "";
+    console.dir(target);
+    target.innerHTML = "";
+    console.dir(target);
+
+    target.appendChild(draggable);
+    // }
+    lineClass = `.line${currentLine}${currentPlayer + 1}`;
+    removeEventsToALine(lineClass);
+
+    socket.emit("change-player");
+  }
 
   function addEventsToALine(lineClass) {
     const cardPlaceholdersToAdd = document.querySelectorAll(lineClass);
 
     cardPlaceholdersToAdd.forEach((cardPlaceholder) => {
-      if (cardPlaceholder.childElementCount === 0) {
+      if (cardPlaceholder.childElementCount === 0 && deckLength > 2) {
         cardPlaceholder.addEventListener("dragenter", dragEnter);
         cardPlaceholder.addEventListener("dragover", dragOver);
         cardPlaceholder.addEventListener("dragleave", dragLeave);
         cardPlaceholder.addEventListener("drop", drop);
+        cardPlaceholder.style.borderColor = "red";
+      } else if (deckLength <= 2) {
+        cardPlaceholder.addEventListener("dragenter", dragEnter);
+        cardPlaceholder.addEventListener("dragover", dragOver);
+        cardPlaceholder.addEventListener("dragleave", dragLeave);
+        cardPlaceholder.addEventListener("drop", dropSwap);
         cardPlaceholder.style.borderColor = "red";
       }
     });
