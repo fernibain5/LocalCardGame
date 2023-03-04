@@ -109,23 +109,21 @@ socketServer.on("connection", (socket) => {
   });
 
   socket.on("draw-card", () => {
-    let card = gameState.deck.pop();
-    console.log("Card drawn: ", card);
-    // Check the length of the deck
-    console.log("Deck length after draw: ", gameState.deck.length);
-    socket.emit("draw-card", { card, deckLength: gameState.deck.length });
-    socket.broadcast.emit("enemy-draw-card", {
-      card,
-      deckLength: gameState.deck.length,
-    });
+    if (gameState.deck.length !== 0) {
+      let card = gameState.deck.pop();
+      // Check the length of the deck
+      socket.emit("draw-card", { card, deckLength: gameState.deck.length });
+      socket.broadcast.emit("enemy-draw-card", {
+        card,
+        deckLength: gameState.deck.length,
+      });
+    }
   });
 
   socket.on("change-player", () => {
     gameState.players.playerIndex.currentPlayer;
     // Change the player turn
     gameState.currentTurn = (gameState.currentTurn + 1) % 2;
-    console.log("GameState im passing: ", gameState.currentTurn);
-    console.log(playerIndex !== gameState.currentTurn);
     socket.broadcast.emit("change-player", gameState.currentTurn);
   });
 
@@ -134,8 +132,12 @@ socketServer.on("connection", (socket) => {
     gameState.players.playerIndex.hands[columnDropped].push(
       dropCardObj["userCardDrawn"]
     );
-    console.log("DROP IDTARGET: ", dropCardObj["idTarget"]);
     socket.broadcast.emit("enemy-drop-card", dropCardObj["idTarget"]);
+    console.log({
+      deckLength: gameState.deck.length,
+      columnDropped,
+      userCardDrawn: dropCardObj["userCardDrawn"],
+    });
   });
 
   socket.on("start-timer", () => {
@@ -153,9 +155,6 @@ socketServer.on("connection", (socket) => {
         countdown = 10;
         gameState.currentTurn = (gameState.currentTurn + 1) % 2;
         if (gameState.deck.length > 1) {
-          console.log(
-            `AutoPlaceEvent, deckLength is: ${gameState.deck.length}`
-          );
           socket.emit("auto-place-card", gameState.deck.length);
         }
         socket.broadcast.emit("change-player", gameState.currentTurn);
