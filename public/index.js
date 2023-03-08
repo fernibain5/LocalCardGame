@@ -75,9 +75,9 @@ function startMultiPlayer() {
     playerReady(num);
     if (ready) playMulti(socket);
   });
-  socket.on("enemy-drop-card", (idTarget) => {
+  socket.on("enemy-drop-card", (enemyDropObj) => {
+    deckLength = enemyDropObj.deckLength;
     let enemyCardId;
-
     if (deckLength > 11) {
       enemyCardId = enemyCardDrawn["id"];
     } else {
@@ -86,10 +86,9 @@ function startMultiPlayer() {
     }
     const enemyCardEl = document.getElementById(enemyCardId);
     const currentParent = enemyCardEl.parentElement;
-    const targetParent = document.getElementById(`${idTarget}`);
+    const targetParent = document.getElementById(`${enemyDropObj.idTarget}`);
     // deckPlaceholder.innerHTML = "";
-
-    // if (deckLength <= 2) targetParent.innerHTML = "";
+    if (deckLength < 2) targetParent.innerHTML = "";
     // console.log({
     //   enemyCardEl,
     //   enemyCardId,
@@ -100,11 +99,11 @@ function startMultiPlayer() {
     targetParent.appendChild(enemyCardEl);
   });
 
-  socket.on("draw-5-cards", (initialCards) => {
+  socket.on("draw-5-cards", (draw5Obj) => {
     const boxes = document.querySelectorAll(`.line1${currentPlayer + 1}`);
 
     boxes.forEach((cardPlaceholder, i) => {
-      const card = initialCards[i];
+      const card = draw5Obj.initialCards[i];
       const newDiv = document.createElement("div");
 
       const newImg = document.createElement("img");
@@ -115,6 +114,7 @@ function startMultiPlayer() {
 
       newDiv.appendChild(newImg);
       cardPlaceholder.appendChild(newDiv);
+      deckLength = draw5Obj.deckLength;
     });
   });
 
@@ -132,10 +132,12 @@ function startMultiPlayer() {
     playerCardEle.id = userCardDrawn["id"];
 
     newDiv.appendChild(playerCardEle);
+    console.log(playerCardEle);
     deckPlaceholder.appendChild(newDiv);
 
     // attach the dragstart event handler
     playerCardEle.addEventListener("dragstart", dragStart);
+    deckLength = drawCardObj.deckLength;
   });
   socket.on("enemy-5-cards", (enemyInitialCardsObj) => {
     const boxes = document.querySelectorAll(
@@ -158,7 +160,7 @@ function startMultiPlayer() {
   });
 
   socket.on("enemy-draw-card", (cardObj) => {
-    deckLength--;
+    deckLength = cardObj.deckLength;
     const newDiv = document.createElement("div");
     newDiv.className = "layer1";
     deckLength = cardObj.deckLength;
@@ -248,6 +250,7 @@ function dropSwapWrapper(socket) {
 
 function drop(e, socket) {
   e.preventDefault();
+  socket.emit("stop-timer");
 
   timer = 10;
   updateTimer();
@@ -276,7 +279,16 @@ function drop(e, socket) {
   target.appendChild(draggable);
   // }
   lineClass = `.line${currentLine}${currentPlayer + 1}`;
-  removeEventsToALine(lineClass, socket);
+  // removeEventsToALine(lineClass);
+  const cardPlaceholdersToRemove = document.querySelectorAll(lineClass);
+
+  cardPlaceholdersToRemove.forEach((cardPlaceholder) => {
+    cardPlaceholder.removeEventListener("dragenter", dragEnter);
+    cardPlaceholder.removeEventListener("dragover", dragOver);
+    cardPlaceholder.removeEventListener("dragleave", dragLeave);
+    cardPlaceholder.removeEventListener("drop", dropWrapper(socket));
+    cardPlaceholder.style.borderColor = "gray";
+  });
 
   socket.emit("change-player");
 }
@@ -285,8 +297,8 @@ function dropSwap(e, socket) {
   e.preventDefault();
   console.log(`running DROPSWAP FUNCTION`);
 
-  // timer = 10;
-  // updateTimer();
+  timer = 10;
+  updateTimer();
 
   // get CardPlaceholder
   let target = e.currentTarget;
@@ -322,6 +334,7 @@ function dropSwap(e, socket) {
 
 function addEventsToALine(lineClass, socket) {
   const cardPlaceholdersToAdd = document.querySelectorAll(lineClass);
+  console.dir(cardPlaceholdersToAdd);
 
   cardPlaceholdersToAdd.forEach((cardPlaceholder) => {
     if (cardPlaceholder.childElementCount === 0 && deckLength > 2) {
@@ -330,9 +343,7 @@ function addEventsToALine(lineClass, socket) {
       cardPlaceholder.addEventListener("dragleave", dragLeave);
       cardPlaceholder.addEventListener("drop", dropWrapper(socket));
       cardPlaceholder.style.borderColor = "red";
-      console.log(`DROP EVENTS ADDED 5`);
-    } else if (deckLength <= 2) {
-      console.log("DROPSWAP ADDED");
+    } else if (deckLength < 3) {
       cardPlaceholder.addEventListener("dragenter", dragEnter);
       cardPlaceholder.addEventListener("dragover", dragOver);
       cardPlaceholder.addEventListener("dragleave", dragLeave);
@@ -342,16 +353,15 @@ function addEventsToALine(lineClass, socket) {
   });
 }
 
-function removeEventsToALine(lineClass, socket) {
+function removeEventsToALine(lineClass) {
   const cardPlaceholdersToRemove = document.querySelectorAll(lineClass);
 
   cardPlaceholdersToRemove.forEach((cardPlaceholder) => {
     cardPlaceholder.removeEventListener("dragenter", dragEnter);
     cardPlaceholder.removeEventListener("dragover", dragOver);
     cardPlaceholder.removeEventListener("dragleave", dragLeave);
-    cardPlaceholder.removeEventListener("drop", dropWrapper(socket));
+    cardPlaceholder.removeEventListener("drop", drop);
     cardPlaceholder.style.borderColor = "gray";
-    console.log({ removedFrom: "drop-event", deckLength, lineClass });
   });
 
   console.log({ cardPlaceholdersToRemove, deckLength, lineClass });
@@ -376,7 +386,9 @@ function playMulti(socket) {
     }
     if (currentPlayer === playerTurn) {
       if (deckLength === 0) {
+        socket.emit("who-wins");
       } else if (deckLength <= 2) {
+        socket.emit("stop-timer");
         console.log({ deckLength });
         socket.emit("draw-card");
         displaySwapDiv.style.display = "inline-block";
@@ -556,7 +568,7 @@ function playerReady(num) {
 
 function doesAllHaveAChild() {
   const cardPlaceholders = document.querySelectorAll(
-    `.line${currentLine.toString() + (currentPlayer + 1).toString()}`
+    `.line${currentLine}${currentPlayer + 1}`
   );
 
   let allHaveAChild = true;

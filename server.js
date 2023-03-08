@@ -34,7 +34,7 @@ const gameState = {
 };
 
 let interval;
-let countdown = 10;
+let countdown = 15;
 
 socketServer.on("connection", (socket) => {
   let playerIndex = -1;
@@ -42,7 +42,7 @@ socketServer.on("connection", (socket) => {
     if (connections[i] === null) {
       playerIndex = i;
       // Add the player to the game state
-      gameState.players.playerIndex = {
+      gameState.players[playerIndex] = {
         socket: socket,
         hands: [[], [], [], [], []],
         currentPlayer: playerIndex,
@@ -94,11 +94,15 @@ socketServer.on("connection", (socket) => {
     for (let i = 0; i < 5; i++) {
       cardDrawn = gameState.deck.pop();
       initialCards.push(cardDrawn);
-      gameState.players.playerIndex.hands[i].push(cardDrawn);
+      gameState.players[playerIndex].hands[i].push(cardDrawn);
+      console.log({ deckLength: gameState.deck.length, cardDrawn });
     }
-    // console.log("Deck length after draw:", gameState.deck.length);
+    console.log("Deck length after draw:", gameState.deck.length);
 
-    socket.emit("draw-5-cards", initialCards);
+    socket.emit("draw-5-cards", {
+      initialCards,
+      deckLength: gameState.deck.length,
+    });
 
     // Broadcast to the enemy the cards you drawn
     socket.broadcast.emit("enemy-5-cards", { initialCards, playerIndex });
@@ -111,6 +115,12 @@ socketServer.on("connection", (socket) => {
   socket.on("draw-card", () => {
     if (gameState.deck.length !== 0) {
       let card = gameState.deck.pop();
+      console.log({
+        drawCardFrom: "draw-card",
+        playerIndex,
+        deckLength: gameState.deck.length,
+        card,
+      });
       // Check the length of the deck
       socket.emit("draw-card", { card, deckLength: gameState.deck.length });
       socket.broadcast.emit("enemy-draw-card", {
@@ -121,19 +131,30 @@ socketServer.on("connection", (socket) => {
   });
 
   socket.on("change-player", () => {
-    gameState.players.playerIndex.currentPlayer;
+    console.log({
+      changePlayer: "starting running",
+      previousPlayer: gameState.currentTurn,
+    });
     // Change the player turn
     gameState.currentTurn = (gameState.currentTurn + 1) % 2;
+    console.log({
+      changePlayer: "finish running",
+      currentPlayer: gameState.currentTurn,
+    });
     socket.broadcast.emit("change-player", gameState.currentTurn);
   });
 
   socket.on("drop-card", (dropCardObj) => {
     const columnDropped = dropCardObj["idTarget"][1];
-    gameState.players.playerIndex.hands[columnDropped].push(
+    gameState.players[playerIndex].hands[columnDropped].push(
       dropCardObj["userCardDrawn"]
     );
-    socket.broadcast.emit("enemy-drop-card", dropCardObj["idTarget"]);
+    socket.broadcast.emit("enemy-drop-card", {
+      idTarget: dropCardObj["idTarget"],
+      deckLength: gameState.deck.length,
+    });
     console.log({
+      playerIndex,
       deckLength: gameState.deck.length,
       columnDropped,
       userCardDrawn: dropCardObj["userCardDrawn"],
@@ -164,6 +185,9 @@ socketServer.on("connection", (socket) => {
 
   socket.on("stop-timer", () => {
     clearInterval(interval);
+  });
+  socket.on("who-wins", () => {
+    console.log({ players: gameState.players });
   });
 });
 
