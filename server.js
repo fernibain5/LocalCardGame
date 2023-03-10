@@ -47,6 +47,7 @@ socketServer.on("connection", (socket) => {
         hands: [[], [], [], [], []],
         currentPlayer: playerIndex,
       };
+      console.log('hola');
       break;
     }
   }
@@ -141,11 +142,14 @@ socketServer.on("connection", (socket) => {
       changePlayer: "finish running",
       currentPlayer: gameState.currentTurn,
     });
+    socket.emit("change-player", gameState.currentTurn)
     socket.broadcast.emit("change-player", gameState.currentTurn);
   });
 
   socket.on("drop-card", (dropCardObj) => {
-    const columnDropped = dropCardObj["idTarget"][1];
+    console.log(dropCardObj);
+    const columnDropped = dropCardObj["idTarget"][0];
+    console.log(columnDropped);
     gameState.players[playerIndex].hands[columnDropped].push(
       dropCardObj["userCardDrawn"]
     );
@@ -180,7 +184,7 @@ socketServer.on("connection", (socket) => {
         }
         socket.broadcast.emit("change-player", gameState.currentTurn);
       }
-    }, 10);
+    }, 100000);
   });
 
   socket.on("stop-timer", () => {

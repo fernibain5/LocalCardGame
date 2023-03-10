@@ -1,3 +1,5 @@
+const deck = require("../deck");
+
 const turnEl = document.getElementById("turn");
 const board = document.querySelector(".board");
 const playBtn = document.querySelector("#play");
@@ -250,47 +252,49 @@ function dropSwapWrapper(socket) {
 
 function drop(e, socket) {
   e.preventDefault();
-  socket.emit("stop-timer");
-
-  timer = 10;
-  updateTimer();
-
   // get CardPlaceholder
+  // currentLine = `.line${currentLine}${currentPlayer + 1}`;
   let target = e.currentTarget;
-  target.classList.remove("drag-over");
 
-  const idTarget = target.id;
+  if (target.classList.contains(lineClass.substring(1)) && currentPlayer === playerTurn && target.childElementCount === 0) {
 
-  socket.emit("drop-card", { userCardDrawn, idTarget });
-  console.log("Drop emitted from drop function");
+    socket.emit("stop-timer");
 
-  // get the draggable element
-  const id = e.dataTransfer.getData("text/plain");
-  const draggable = document.getElementById(id);
-  const draggableParent = draggable.parentElement;
+    timer = 10;
+    updateTimer();
 
-  draggable.classList.remove("hide");
-  draggable.classList.remove("layer");
-  draggable.draggable = false;
+    target.classList.remove("drag-over");
 
-  // deckPlaceholder.removeChild(draggableParent);
 
-  // drop card in the cardPlaceholder
-  target.appendChild(draggable);
-  // }
-  lineClass = `.line${currentLine}${currentPlayer + 1}`;
-  // removeEventsToALine(lineClass);
-  const cardPlaceholdersToRemove = document.querySelectorAll(lineClass);
+    const idTarget = target.id;
+    socket.emit("drop-card", { userCardDrawn, idTarget });
+    console.log("Drop emitted from drop function");
 
-  cardPlaceholdersToRemove.forEach((cardPlaceholder) => {
-    cardPlaceholder.removeEventListener("dragenter", dragEnter);
-    cardPlaceholder.removeEventListener("dragover", dragOver);
-    cardPlaceholder.removeEventListener("dragleave", dragLeave);
-    cardPlaceholder.removeEventListener("drop", dropWrapper(socket));
-    cardPlaceholder.style.borderColor = "gray";
-  });
+    // get the draggable element
+    const id = e.dataTransfer.getData("text/plain");
+    const draggable = document.getElementById(id);
+    const draggableParent = draggable.parentElement;
 
-  socket.emit("change-player");
+    draggable.classList.remove("hide");
+    draggable.classList.remove("layer");
+    draggable.draggable = false;
+
+    // deckPlaceholder.removeChild(draggableParent);
+
+    // drop card in the cardPlaceholder
+    target.appendChild(draggable);
+
+    socket.emit("change-player");
+
+  }
+  // else if( ) 
+
+  else {
+    alert("Invalid Move")
+    console.log({ currentLine, lineClass, targetClasslist: target.classList });
+  }
+
+
 }
 
 function dropSwap(e, socket) {
@@ -379,7 +383,7 @@ function playMulti(socket) {
 
   if (enemyReady) {
     if (isGameJustStarted === true) {
-      createPlayersBoard();
+      createPlayersBoard(socket);
 
       socket.emit("draw-5-cards");
       isGameJustStarted = false;
@@ -396,7 +400,7 @@ function playMulti(socket) {
         confirmSwapBtn.addEventListener("click", () => {
           displaySwapDiv.style.display = "none";
           lineClass = `.line${currentLine}${currentPlayer + 1}`;
-          addEventsToALine(lineClass, socket);
+          // addEventsToALine(lineClass, socket);
         });
 
         declineSwapBtn.addEventListener("click", () => {
@@ -419,13 +423,13 @@ function playMulti(socket) {
         lineClass = `.line${currentLine}${currentPlayer + 1}`;
 
         // add events listeners for the player to be able to drag/drop its card his current active line
-        addEventsToALine(lineClass, socket);
+        // addEventsToALine(lineClass, socket);
       }
     }
   }
 }
 
-function createPlayersBoard() {
+function createPlayersBoard(socket) {
   // Creates two players boards
   for (let i = 0; i < 2; i++) {
     let playerBoard = document.createElement("div");
@@ -437,16 +441,23 @@ function createPlayersBoard() {
       // Adds to each poker hands its line and which player in a class
       for (var j = 0; j < 5; j++) {
         let lineNumber;
+        let id;
         if (i === 0) {
-          lineNumber = `line${(5 - h).toString() + (i + 1).toString()}`;
+          lineNumber = `line${(5 - h)}${(i + 1)}`;
+          id = `${j}${4 - h}p${(i + 1)}`;
         } else {
-          lineNumber = `line${(h + 1).toString() + (i + 1).toString()}`;
+          lineNumber = `line${(h + 1)}${(i + 1)}`;
+          id = `${j}${h}p${(i + 1)}`;
         }
         let placeholder = document.createElement("div");
-        let id = `${h.toString() + j.toString()}p${(i + 1).toString()}`;
 
         placeholder.className = `card-placeholder ${lineNumber}`;
         placeholder.id = id;
+        placeholder.addEventListener("dragenter", dragEnter);
+        placeholder.addEventListener("dragover", dragOver);
+        placeholder.addEventListener("dragleave", dragLeave);
+        placeholder.addEventListener("drop", dropWrapper(socket));
+
 
         dropTarget.appendChild(placeholder);
       }
