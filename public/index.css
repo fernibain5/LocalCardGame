@@ -204,6 +204,6 @@ span.green {
   background-color: green;
 }
 
-#swap {
+#swap, #reset {
   display: none;
 }

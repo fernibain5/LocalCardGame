@@ -6,6 +6,7 @@ const http = require("http");
 const socketIO = require("socket.io");
 const app = express();
 const httpServer = http.createServer(app);
+const createDeck = require("./deck");
 
 const socketServer = socketIO(httpServer, {
   // cors: {
@@ -29,12 +30,12 @@ const gameState = {
     0: null,
     1: null,
   },
-  deck: require("./deck"),
+  deck: createDeck(),
   currentTurn: 0,
 };
 
 let interval;
-let countdown = 15;
+let countdown = 40;
 
 socketServer.on("connection", (socket) => {
   let playerIndex = -1;
@@ -47,7 +48,7 @@ socketServer.on("connection", (socket) => {
         hands: [[], [], [], [], []],
         currentPlayer: playerIndex,
       };
-      console.log('hola');
+      console.log("hola");
       break;
     }
   }
@@ -142,7 +143,7 @@ socketServer.on("connection", (socket) => {
       changePlayer: "finish running",
       currentPlayer: gameState.currentTurn,
     });
-    socket.emit("change-player", gameState.currentTurn)
+    socket.emit("change-player", gameState.currentTurn);
     socket.broadcast.emit("change-player", gameState.currentTurn);
   });
 
@@ -150,9 +151,14 @@ socketServer.on("connection", (socket) => {
     console.log(dropCardObj);
     const columnDropped = dropCardObj["idTarget"][0];
     console.log(columnDropped);
-    gameState.players[playerIndex].hands[columnDropped].push(
-      dropCardObj["userCardDrawn"]
-    );
+    if (gameState.deck.length >= 2) {
+      gameState.players[playerIndex].hands[columnDropped].push(
+        dropCardObj["userCardDrawn"]
+      );
+    } else {
+      gameState.players[playerIndex].hands[columnDropped][4] =
+        dropCardObj["userCardDrawn"];
+    }
     socket.broadcast.emit("enemy-drop-card", {
       idTarget: dropCardObj["idTarget"],
       deckLength: gameState.deck.length,
@@ -177,21 +183,30 @@ socketServer.on("connection", (socket) => {
 
       // If the countdown reaches 0, switch to the next player
       if (countdown <= 0 && gameState.deck.length > 1) {
-        countdown = 10;
+        countdown = 40;
         gameState.currentTurn = (gameState.currentTurn + 1) % 2;
         if (gameState.deck.length > 1) {
           socket.emit("auto-place-card", gameState.deck.length);
         }
         socket.broadcast.emit("change-player", gameState.currentTurn);
       }
-    }, 100000);
+    }, 10);
   });
 
   socket.on("stop-timer", () => {
+    countdown = 40;
     clearInterval(interval);
   });
   socket.on("who-wins", () => {
     console.log({ players: gameState.players });
+    socket.emit("display-reset-btn");
+    socket.broadcast.emit("display-reset-btn");
+  });
+  socket.on("new-game", () => {
+    connections[0] = null;
+    connections[1] = null;
+
+    gameState.deck = createDeck();
   });
 });
 

@@ -1,5 +1,3 @@
-const deck = require("../deck");
-
 const turnEl = document.getElementById("turn");
 const board = document.querySelector(".board");
 const playBtn = document.querySelector("#play");
@@ -7,12 +5,13 @@ const readyBtn = document.querySelector("#ready-btn");
 const displaySwapDiv = document.getElementById("swap");
 const confirmSwapBtn = document.querySelector("#swap-yes");
 const declineSwapBtn = document.querySelector("#swap-no");
+const resetBtn = document.querySelector("#reset-btn");
 
 // Select empty deck placeholder
 const deckPlaceholder = document.querySelector(".container-row");
 
 let currentPlayer = null;
-let timer = 10;
+let timer = 40;
 let enemyCardDrawn;
 let userCardDrawn;
 let playerCardEle;
@@ -80,7 +79,7 @@ function startMultiPlayer() {
   socket.on("enemy-drop-card", (enemyDropObj) => {
     deckLength = enemyDropObj.deckLength;
     let enemyCardId;
-    if (deckLength > 11) {
+    if (deckLength >= 11) {
       enemyCardId = enemyCardDrawn["id"];
     } else {
       enemyCardId = `backCard${backCardCounter}`;
@@ -211,18 +210,21 @@ function startMultiPlayer() {
         break;
       }
     }
-    playerCardPlaceholders.forEach((cardPlaceholder) => {
-      cardPlaceholder.removeEventListener("dragenter", dragEnter);
-      cardPlaceholder.removeEventListener("dragover", dragOver);
-      cardPlaceholder.removeEventListener("dragleave", dragLeave);
-      cardPlaceholder.removeEventListener("drop", dropWrapper(socket));
-      cardPlaceholder.style.borderColor = "gray";
-    });
+
     console.log({ removeFrom: "auto-place", lineClass, deckLength });
     // deckPlaceholder.removeChild(cardParentEle);
 
     timer = 10;
     updateTimer();
+  });
+
+  socket.on("display-reset-btn", () => {
+    const divReset = document.getElementById("reset");
+    divReset.style.display = "inline-block";
+
+    resetBtn.addEventListener("click", () => {
+      socket.emit("new-game");
+    });
   });
 }
 
@@ -256,15 +258,18 @@ function drop(e, socket) {
   // currentLine = `.line${currentLine}${currentPlayer + 1}`;
   let target = e.currentTarget;
 
-  if (target.classList.contains(lineClass.substring(1)) && currentPlayer === playerTurn && target.childElementCount === 0) {
-
+  if (
+    (target.classList.contains(lineClass.substring(1)) &&
+      currentPlayer === playerTurn &&
+      target.childElementCount === 0) ||
+    (deckLength < 2 && target.id[1] === "4")
+  ) {
     socket.emit("stop-timer");
 
-    timer = 10;
+    timer = 40;
     updateTimer();
 
     target.classList.remove("drag-over");
-
 
     const idTarget = target.id;
     socket.emit("drop-card", { userCardDrawn, idTarget });
@@ -280,28 +285,27 @@ function drop(e, socket) {
     draggable.draggable = false;
 
     // deckPlaceholder.removeChild(draggableParent);
+    if (deckLength < 2) target.innerHTML = "";
 
     // drop card in the cardPlaceholder
     target.appendChild(draggable);
 
     socket.emit("change-player");
-
   }
-  // else if( ) 
+  // else if() {
 
+  // }
   else {
-    alert("Invalid Move")
+    alert("Invalid Move");
     console.log({ currentLine, lineClass, targetClasslist: target.classList });
   }
-
-
 }
 
 function dropSwap(e, socket) {
   e.preventDefault();
   console.log(`running DROPSWAP FUNCTION`);
 
-  timer = 10;
+  timer = 40;
   updateTimer();
 
   // get CardPlaceholder
@@ -399,7 +403,7 @@ function playMulti(socket) {
 
         confirmSwapBtn.addEventListener("click", () => {
           displaySwapDiv.style.display = "none";
-          lineClass = `.line${currentLine}${currentPlayer + 1}`;
+          // lineClass = `.line${currentLine}${currentPlayer + 1}`;
           // addEventsToALine(lineClass, socket);
         });
 
@@ -443,11 +447,11 @@ function createPlayersBoard(socket) {
         let lineNumber;
         let id;
         if (i === 0) {
-          lineNumber = `line${(5 - h)}${(i + 1)}`;
-          id = `${j}${4 - h}p${(i + 1)}`;
+          lineNumber = `line${5 - h}${i + 1}`;
+          id = `${j}${4 - h}p${i + 1}`;
         } else {
-          lineNumber = `line${(h + 1)}${(i + 1)}`;
-          id = `${j}${h}p${(i + 1)}`;
+          lineNumber = `line${h + 1}${i + 1}`;
+          id = `${j}${h}p${i + 1}`;
         }
         let placeholder = document.createElement("div");
 
@@ -457,7 +461,6 @@ function createPlayersBoard(socket) {
         placeholder.addEventListener("dragover", dragOver);
         placeholder.addEventListener("dragleave", dragLeave);
         placeholder.addEventListener("drop", dropWrapper(socket));
-
 
         dropTarget.appendChild(placeholder);
       }
