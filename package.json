@@ -8,6 +8,9 @@
     "dev": "nodemon server",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "engines": {
+    "node": "18.14.1"
+  },
   "author": "",
   "license": "ISC",
   "dependencies": {
