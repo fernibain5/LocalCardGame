@@ -7,6 +7,7 @@ const socketIO = require("socket.io");
 const app = express();
 const httpServer = http.createServer(app);
 const createDeck = require("./deck");
+const compareHands = require("./poker");
 
 const socketServer = socketIO(httpServer, {
   // cors: {
@@ -35,7 +36,7 @@ const gameState = {
 };
 
 let interval;
-let countdown = 40;
+let countdown = 20;
 
 socketServer.on("connection", (socket) => {
   let playerIndex = -1;
@@ -68,6 +69,9 @@ socketServer.on("connection", (socket) => {
     console.log(`Player ${playerIndex} disconnected`);
     delete gameState.players[playerIndex];
     connections[playerIndex] = null;
+    // if (connections === [null, null])
+    gameState.deck = createDeck();
+    countdown = 20;
     // if (connections === [null, null]) gameState.deck = require('./deck')
 
     //Tell everyone what player just disconnected
@@ -183,22 +187,35 @@ socketServer.on("connection", (socket) => {
 
       // If the countdown reaches 0, switch to the next player
       if (countdown <= 0 && gameState.deck.length > 1) {
-        countdown = 40;
+        countdown = 20;
         gameState.currentTurn = (gameState.currentTurn + 1) % 2;
         if (gameState.deck.length > 1) {
           socket.emit("auto-place-card", gameState.deck.length);
         }
         socket.broadcast.emit("change-player", gameState.currentTurn);
       }
-    }, 10);
+    }, 1000);
   });
 
   socket.on("stop-timer", () => {
-    countdown = 40;
+    countdown = 20;
     clearInterval(interval);
   });
   socket.on("who-wins", () => {
     console.log({ players: gameState.players });
+    player1Hands = gameState.players[0].hands;
+    player2Hands = gameState.players[1].hands;
+
+    const results = [];
+
+    player1Hands.forEach((p1Hand, i) => {
+      result = compareHands(p1Hand, player2Hands[i]);
+      results.push(result);
+    });
+
+    socket.emit("game-over", { player1Hands, player2Hands, results });
+    socket.broadcast.emit("game-over", { player1Hands, player2Hands, results });
+
     socket.emit("display-reset-btn");
     socket.broadcast.emit("display-reset-btn");
   });
