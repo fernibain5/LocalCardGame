@@ -24,6 +24,7 @@ let playerTurn = 0;
 let deckLength = 52;
 let lineClass;
 let backCardCounter = 0;
+let timerRunning = false;
 
 // At the beginning, line 1 of both players are filled, so it starts at line 2
 let currentLine = 2;
@@ -197,6 +198,7 @@ function startMultiPlayer() {
   });
 
   socket.on("auto-place-card", () => {
+    timerRunning = false;
     const classPlaceholders = `.line${currentLine}${currentPlayer + 1}`;
     const playerCardPlaceholders = document.querySelectorAll(classPlaceholders);
 
@@ -297,6 +299,11 @@ function dropWrapper(socket) {
 }
 
 function drop(e, socket) {
+  // if the timer is not running, return
+  if (!timerRunning) {
+    return;
+  }
+
   e.preventDefault();
   // get CardPlaceholder
   // currentLine = `.line${currentLine}${currentPlayer + 1}`;
@@ -381,6 +388,7 @@ function playMulti(socket) {
       } else {
         socket.emit("draw-card");
         socket.emit("start-timer");
+        timerRunning = true;
         turnEl.innerHTML = "Your Go";
 
         // returns Boolean if all currentLine CardPlaceholders of the player have a child (img tag of a card)
