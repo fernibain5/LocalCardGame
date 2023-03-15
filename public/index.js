@@ -79,7 +79,7 @@ function startMultiPlayer() {
   socket.on("enemy-drop-card", (enemyDropObj) => {
     deckLength = enemyDropObj.deckLength;
     let enemyCardId;
-    if (deckLength >= 11) {
+    if (deckLength > 11) {
       enemyCardId = enemyCardDrawn["id"];
     } else {
       enemyCardId = `backCard${backCardCounter}`;
