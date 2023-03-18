@@ -1,34 +1,85 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Document</title>
-    <link rel="stylesheet" href="index.css" />
-    <script src="/socket.io/socket.io.js"></script>
-  </head>
-  <body>
-    <h1 id="turn">Player 1</h1>
-    <div class="container-row"></div>
-    <h2>Time remaining: <span id="timer">10</span></h2>
-    <button id="play">Play</button>
-    <button id="ready-btn">Ready</button>
-    <div id="swap">Do you want to swap? <button id="swap-yes">Yes</button><button id="swap-no">No</button></div>
-    <div id="reset"> Play another game? <button id="reset-btn">Yes</button></div>
-    <div class="p1">
-      Player 1
-      <div class="connected">Connected <span></span></div>
-      <div class="ready">Ready <span></span></div>
-  
-    </div>
-    <div class="p2">
-      Player 2
-      <div class="connected">Connected <span></span></div>
-      <div class="ready">Ready <span></span></div>
-  
-    </div>
-    <div class="board" id="board"></div>
-    <script src="index.js"></script>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Montana Lobby</title>
+  <style>
+    /* ... your CSS styles ... */
+  </style>
+</head>
+<body>
+  <h1>Montana Lobby</h1>
+  <div id="rooms-container">
+    <!-- The available rooms will be added here -->
+  </div>
+  <button id="create-room">Create Room</button>
+
+  <script>
+  document.getElementById('create-room').addEventListener('click', () => {
+  // Implement room creation logic here
+  createRoom();
+});
+function createRoom() {
+  fetch('/api/rooms/create', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
+    .then((response) => response.json())
+    .then((newRoom) => {
+      // Redirect the user to the new room
+      window.location.href = `/game/${newRoom.roomId}`; // Replace with the correct URL path
+    })
+    .catch((error) => {
+      console.error('Error creating room:', error);
+    });
+}
+
+    function fetchRooms() {
+      console.log('fetching rooms');
+      fetch('/api/rooms') // Replace with your API endpoint
+        .then(response => response.json())
+        .then(rooms => {
+          const roomsContainer = document.getElementById('rooms-container');
+          roomsContainer.innerHTML = '';
+
+          rooms.forEach(room => {
+            const roomDiv = document.createElement('div');
+            roomDiv.className = 'room';
+            roomDiv.textContent = room.roomTitle;
+            roomDiv.dataset.roomId = room.roomId;
+
+            roomDiv.addEventListener('click', joinRoom);
+
+            roomsContainer.appendChild(roomDiv);
+          });
+        })
+        .catch(error => {
+          console.error('Error fetching rooms:', error);
+        });
+    }
+
+    function joinRoom(event) {
+      const roomId = event.currentTarget.dataset.roomId;
+      // Check if the room has space for a new player
+      fetch(`/api/rooms/${roomId}`) // Replace with your API endpoint
+        .then(response => response.json())
+        .then(room => {
+          if (room.players < 2) {
+            window.location.href = `/game/${roomId}`; // Replace with the correct URL path
+          } else {
+            alert('The room is already full, please connect to another one.');
+          }
+        })
+        .catch(error => {
+          console.error('Error joining room:', error);
+        });
+    }
+
+    // Fetch rooms when the page loads
+    fetchRooms();
+  </script>
+</body>
 </html>

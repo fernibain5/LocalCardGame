@@ -3,11 +3,17 @@ const dotenv = require("dotenv");
 const port = process.env.PORT || 3000;
 let cors = require("cors");
 const http = require("http");
+const path = require("path");
 const socketIO = require("socket.io");
 const app = express();
 const httpServer = http.createServer(app);
 const createDeck = require("./deck");
 const compareHands = require("./poker");
+const shortid = require("shortid");
+const connectDB = require("./app");
+const Room = require("./models/Room");
+
+dotenv.config();
 
 const socketServer = socketIO(httpServer, {
   // cors: {
@@ -15,79 +21,154 @@ const socketServer = socketIO(httpServer, {
   // },
 });
 
-// Set static folder
-app.use(express.static("./public"));
-app.use(express.json({ extended: false }));
-// app.use(cors({ origin: true, credentials: true }));
+connectDB();
 
 // Start server
 httpServer.listen(port, () => console.log(`Server running in port ${port}`));
 
-// Handle a socket connection request from web client
-const connections = [null, null];
+// Set static folder
+app.use(express.static(path.join(__dirname, "public")));
+app.use(express.json({ extended: false }));
+// app.use(cors({ origin: true, credentials: true }));
 
-const gameState = {
-  players: {
-    0: null,
-    1: null,
-  },
-  deck: createDeck(),
-  currentTurn: 0,
-};
+app.get("/game/game.js", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "game.js"));
+});
+
+app.get("/game/:roomId", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "game.html"));
+});
+
+app.get("/api/rooms", (req, res) => {
+  Room.find({}, (err, rooms) => {
+    if (err) {
+      console.error("Error fetching rooms:", err);
+      res.status(500).send("Error fetching rooms");
+      return;
+    }
+    res.json(rooms);
+  });
+});
+
+app.get("/api/rooms/:roomId", (req, res) => {
+  const roomId = req.params.roomId;
+  Room.findOne({ roomId }, (err, room) => {
+    if (err) {
+      console.error("Error fetching room:", err);
+      res.status(500).send("Error fetching room");
+      return;
+    }
+    res.json(room);
+  });
+});
+
+app.post("/api/rooms/create", (req, res) => {
+  const roomId = shortid.generate(); // Implement this function to generate a unique room ID
+  const newRoom = new Room({ roomId, roomTitle: `Room ${roomId}`, players: 1 }); // Set players to 1
+  newRoom.save((err, savedRoom) => {
+    if (err) {
+      console.error("Error creating room:", err);
+      res.status(500).send("Error creating room");
+      return;
+    }
+    res.json(savedRoom);
+  });
+});
+
+// Handle a socket connection request from web client
+const gameStates = {};
+const connections = {};
+const timers = {};
+const countdowns = {};
 
 let interval;
 let countdown = 20;
 
 socketServer.on("connection", (socket) => {
-  let playerIndex = -1;
-  for (const i in connections) {
-    if (connections[i] === null) {
-      playerIndex = i;
-      // Add the player to the game state
-      gameState.players[playerIndex] = {
-        socket: socket,
-        hands: [[], [], [], [], []],
-        currentPlayer: playerIndex,
-      };
-      console.log("hola");
-      break;
+  // Handle joinRoom
+  socket.on("joinRoom", (roomId) => {
+    console.log({ roomId });
+
+    if (!countdowns[roomId]) {
+      countdowns[roomId] = 20;
     }
-  }
+    // If the room has no game state, create it
+    if (!gameStates[roomId]) {
+      gameStates[roomId] = {
+        players: [null, null],
+        deck: createDeck(),
+        countdown: 20,
+        currentTurn: 0,
+      };
+      connections[roomId] = [null, null];
+    }
 
-  socket.emit("player-number", playerIndex);
-  console.log(`Player ${playerIndex} has connected`);
+    const gameState = gameStates[roomId];
 
-  // Ignore player 3
-  if (playerIndex === -1) return;
+    // Check if the room is full
+    if (connections[roomId].every((conn) => conn !== null)) {
+      socket.emit("roomFull");
+      return;
+    }
 
-  connections[playerIndex] = false;
+    let playerIndex = connections[roomId].indexOf(null);
 
-  socket.broadcast.emit("player-connection", playerIndex);
+    // Ignore player 3
+    if (playerIndex === -1) return;
 
+    connections[roomId][playerIndex] = false;
+    socket.playerIndex = playerIndex;
+
+    // Join the room
+    socket.join(roomId);
+    socket.roomId = roomId;
+
+    // Add the player to the game state
+    gameState.players[playerIndex] = {
+      socket: socket,
+      hands: [[], [], [], [], []],
+      currentPlayer: playerIndex,
+    };
+
+    socket.emit("player-number", playerIndex);
+    console.log(`Player ${playerIndex} has connected to room ${roomId}`);
+
+    socket.broadcast.to(roomId).emit("player-connection", playerIndex);
+    console.log("join room successful");
+  });
   // Handle disconnect
   socket.on("disconnect", () => {
-    console.log(`Player ${playerIndex} disconnected`);
-    delete gameState.players[playerIndex];
-    connections[playerIndex] = null;
-    // if (connections === [null, null])
-    gameState.deck = createDeck();
-    countdown = 20;
-    // if (connections === [null, null]) gameState.deck = require('./deck')
+    const roomId = socket.roomId;
+    const gameState = gameStates[roomId];
+    const connection = connections[roomId];
+    const playerIndex = socket.playerIndex;
+    console.log(`Player ${playerIndex} disconnected from room ${roomId}`);
+    gameState.players[playerIndex] = null;
+    connection[playerIndex] = null;
 
-    //Tell everyone what player just disconnected
-    socket.broadcast.emit("player-connection", playerIndex);
+    if (gameState.players.every((player) => player === null)) {
+      delete gameState;
+      delete connection;
+    }
+
+    socket.broadcast.to(roomId).emit("player-connection", playerIndex);
   });
 
   socket.on("player-ready", () => {
-    socket.broadcast.emit("enemy-ready", playerIndex);
-    connections[playerIndex] = true;
+    const roomId = socket.roomId;
+    const connection = connections[roomId];
+    const playerIndex = socket.playerIndex;
+    socket.broadcast.to(roomId).emit("enemy-ready", playerIndex);
+    connection[playerIndex] = true;
   });
 
   // Check players connections
   socket.on("check-players", () => {
+    const roomId = socket.roomId;
+    const connection = connections[roomId];
     const players = [];
-    for (const i in connections) {
-      connections[i] === null
+    for (const i in connection) {
+      connection[i] === null
         ? players.push({ connected: false, ready: false })
         : players.push({ connected: true, ready: connections[i] });
     }
@@ -95,6 +176,9 @@ socketServer.on("connection", (socket) => {
   });
   // Draw user Initial 5 Cards
   socket.on("draw-5-cards", () => {
+    const roomId = socket.roomId;
+    const gameState = gameStates[roomId];
+    const playerIndex = socket.playerIndex;
     const initialCards = [];
     let cardDrawn;
     for (let i = 0; i < 5; i++) {
@@ -111,14 +195,21 @@ socketServer.on("connection", (socket) => {
     });
 
     // Broadcast to the enemy the cards you drawn
-    socket.broadcast.emit("enemy-5-cards", { initialCards, playerIndex });
+    socket.broadcast
+      .to(roomId)
+      .emit("enemy-5-cards", { initialCards, playerIndex });
   });
 
   socket.on("player-turn", () => {
+    const roomId = socket.roomId;
+    const gameState = gameStates[roomId];
     socket.emit("player-turn", gameState["currentTurn"]);
   });
 
   socket.on("draw-card", () => {
+    const roomId = socket.roomId;
+    const gameState = gameStates[roomId];
+    const playerIndex = socket.playerIndex;
     if (gameState.deck.length !== 0) {
       let card = gameState.deck.pop();
       console.log({
@@ -129,7 +220,7 @@ socketServer.on("connection", (socket) => {
       });
       // Check the length of the deck
       socket.emit("draw-card", { card, deckLength: gameState.deck.length });
-      socket.broadcast.emit("enemy-draw-card", {
+      socket.broadcast.to(roomId).emit("enemy-draw-card", {
         card,
         deckLength: gameState.deck.length,
       });
@@ -137,6 +228,8 @@ socketServer.on("connection", (socket) => {
   });
 
   socket.on("change-player", () => {
+    const roomId = socket.roomId;
+    const gameState = gameStates[roomId];
     console.log({
       changePlayer: "starting running",
       previousPlayer: gameState.currentTurn,
@@ -148,10 +241,13 @@ socketServer.on("connection", (socket) => {
       currentPlayer: gameState.currentTurn,
     });
     socket.emit("change-player", gameState.currentTurn);
-    socket.broadcast.emit("change-player", gameState.currentTurn);
+    socket.broadcast.to(roomId).emit("change-player", gameState.currentTurn);
   });
 
   socket.on("drop-card", (dropCardObj) => {
+    const roomId = socket.roomId;
+    const gameState = gameStates[roomId];
+    const playerIndex = socket.playerIndex;
     console.log(dropCardObj);
     const columnDropped = dropCardObj["idTarget"][0];
     console.log(columnDropped);
@@ -163,7 +259,7 @@ socketServer.on("connection", (socket) => {
       gameState.players[playerIndex].hands[columnDropped][4] =
         dropCardObj["userCardDrawn"];
     }
-    socket.broadcast.emit("enemy-drop-card", {
+    socket.broadcast.to(roomId).emit("enemy-drop-card", {
       idTarget: dropCardObj["idTarget"],
       deckLength: gameState.deck.length,
     });
@@ -176,30 +272,35 @@ socketServer.on("connection", (socket) => {
   });
 
   socket.on("start-timer", () => {
-    if (interval) {
-      clearInterval(interval);
+    const roomId = socket.roomId;
+    const gameState = gameStates[roomId];
+    if (timers[roomId]) {
+      clearInterval(timers[roomId]);
     }
 
     // Start the countdown timer
-    interval = setInterval(() => {
-      countdown--;
-      socket.emit("timer-update", countdown);
+    timers[roomId] = setInterval(() => {
+      countdowns[roomId]--;
+      socket.emit("timer-update", countdowns[roomId]);
 
       // If the countdown reaches 0, switch to the next player
-      if (countdown <= 0 && gameState.deck.length > 1) {
-        countdown = 20;
+      if (countdowns[roomId] <= 0 && gameState.deck.length > 1) {
+        countdowns[roomId] = 20;
         gameState.currentTurn = (gameState.currentTurn + 1) % 2;
         if (gameState.deck.length > 1) {
           socket.emit("auto-place-card", gameState.deck.length);
         }
-        socket.broadcast.emit("change-player", gameState.currentTurn);
+        socket.broadcast
+          .to(roomId)
+          .emit("change-player", gameState.currentTurn);
       }
     }, 1000);
   });
 
   socket.on("stop-timer", () => {
-    countdown = 20;
-    clearInterval(interval);
+    const roomId = socket.roomId;
+    countdowns[roomId] = 20;
+    clearInterval(timers[roomId]);
   });
   socket.on("who-wins", () => {
     console.log({ players: gameState.players });
@@ -214,10 +315,12 @@ socketServer.on("connection", (socket) => {
     });
 
     socket.emit("game-over", { player1Hands, player2Hands, results });
-    socket.broadcast.emit("game-over", { player1Hands, player2Hands, results });
+    socket.broadcast
+      .to(roomId)
+      .emit("game-over", { player1Hands, player2Hands, results });
 
     socket.emit("display-reset-btn");
-    socket.broadcast.emit("display-reset-btn");
+    socket.broadcast.to(roomId).emit("display-reset-btn");
   });
   socket.on("new-game", () => {
     connections[0] = null;

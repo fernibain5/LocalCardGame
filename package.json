@@ -22,8 +22,11 @@
     "express-async-handler": "^1.2.0",
     "http": "^0.0.1-security",
     "jsonwebtoken": "^9.0.0",
+    "mongodb": "^5.1.0",
     "mongoose": "^6.9.1",
     "nodemon": "^2.0.20",
+    "path": "^0.12.7",
+    "shortid": "^2.2.16",
     "socket.io": "^4.6.0"
   },
   "devDependencies": {

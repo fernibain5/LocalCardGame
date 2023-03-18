@@ -26,19 +26,27 @@ let lineClass;
 let backCardCounter = 0;
 let timerRunning = false;
 
+function getRoomIdFromPath() {
+  const pathSegments = window.location.pathname.split("/");
+  return pathSegments[pathSegments.length - 1];
+}
+
+const roomId = getRoomIdFromPath();
+
 // At the beginning, line 1 of both players are filled, so it starts at line 2
 let currentLine = 2;
 
 //creates a back of a card img
 const backCard = document.createElement("img");
 backCard.classList.add("container");
-backCard.src = "images/backImage.webp";
+backCard.src = "/images/backImage.webp";
 backCard.draggable = false;
 
 playBtn.addEventListener("click", startMultiPlayer);
 
 function startMultiPlayer() {
   const socket = io();
+  socket.emit("joinRoom", roomId);
 
   readyBtn.addEventListener("click", () => playMulti(socket));
 
@@ -55,6 +63,7 @@ function startMultiPlayer() {
       // Get other player status
       socket.emit("check-players");
     }
+    console.log({ num });
   });
 
   socket.on("check-players", (players) => {
@@ -64,6 +73,7 @@ function startMultiPlayer() {
         playerReady(i);
         if (i !== currentPlayer) enemyReady = true;
       }
+      console.log({ players });
     });
   });
 
@@ -87,17 +97,9 @@ function startMultiPlayer() {
       backCardCounter++;
     }
     const enemyCardEl = document.getElementById(enemyCardId);
-    const currentParent = enemyCardEl.parentElement;
     const targetParent = document.getElementById(`${enemyDropObj.idTarget}`);
-    // deckPlaceholder.innerHTML = "";
+
     if (deckLength < 2) targetParent.innerHTML = "";
-    // console.log({
-    //   enemyCardEl,
-    //   enemyCardId,
-    //   targetParent,
-    //   deckLength,
-    //   currentParent,
-    // });
     targetParent.appendChild(enemyCardEl);
   });
 
@@ -109,7 +111,7 @@ function startMultiPlayer() {
       const newDiv = document.createElement("div");
 
       const newImg = document.createElement("img");
-      newImg.src = `images/${card["id"]}.webp`;
+      newImg.src = `/images/${card["id"]}.webp`;
       newImg.draggable = false;
       newImg.className = "container";
       newImg.id = cardPlaceholder["id"];
@@ -128,7 +130,7 @@ function startMultiPlayer() {
     newDiv.className = "layer1";
 
     playerCardEle = document.createElement("img");
-    playerCardEle.src = `images/${drawCardObj.card["id"]}.webp`;
+    playerCardEle.src = `/images/${drawCardObj.card["id"]}.webp`;
     playerCardEle.draggable = true;
     playerCardEle.className = "container";
     playerCardEle.id = userCardDrawn["id"];
@@ -150,7 +152,7 @@ function startMultiPlayer() {
       const newDiv = document.createElement("div");
 
       const newImg = document.createElement("img");
-      newImg.src = `images/${card["id"]}.webp`;
+      newImg.src = `/images/${card["id"]}.webp`;
       newImg.draggable = false;
       newImg.className = "container";
       newImg.id = cardPlaceholder["id"];
@@ -169,7 +171,7 @@ function startMultiPlayer() {
       enemyCardDrawn = cardObj.card;
 
       const newImg = document.createElement("img");
-      newImg.src = `images/${enemyCardDrawn["id"]}.webp`;
+      newImg.src = `/images/${enemyCardDrawn["id"]}.webp`;
       newImg.className = "container";
       newImg.id = enemyCardDrawn["id"];
 
@@ -178,7 +180,7 @@ function startMultiPlayer() {
     } else {
       const backCard = document.createElement("img");
       backCard.classList.add("container");
-      backCard.src = "images/backImage.webp";
+      backCard.src = "/images/backImage.webp";
       backCard.draggable = false;
       backCard.id = `backCard${backCardCounter}`;
 
@@ -241,7 +243,7 @@ function startMultiPlayer() {
       let enemyHiddenCardId = enemyHand[4]["id"];
 
       const enemyHiddenCardEle = document.createElement("img");
-      enemyHiddenCardEle.src = `images/${enemyHiddenCardId}.webp`;
+      enemyHiddenCardEle.src = `/images/${enemyHiddenCardId}.webp`;
       enemyHiddenCardEle.className = "container";
       enemyHiddenCardEle.id = enemyHiddenCardId;
 
@@ -463,82 +465,6 @@ function playerReady(num) {
   let readySpan = document.querySelector(`${player} .ready span`);
   readySpan.classList.toggle("green");
 }
-
-// function autoDropCard() {
-//   const cardDrawn = deck.pop();
-//   const cardEle = document.getElementById(cardDrawn["id"]);
-//   const cardParentDiv = cardEle.parentElement;
-//   const classPlaceholders = lineClass;
-
-//   //creates a back of a card img
-//   const backCard = document.createElement("img");
-//   backCard.classList.add("container");
-//   backCard.src = "images/backImage.webp";
-//   backCard.draggable = false;
-
-//   const playerCardPlaceholders = document.querySelectorAll(classPlaceholders);
-//   for (var i = 0; i < playerCardPlaceholders.length; i++) {
-//     if (!playerCardPlaceholders[i].hasChildNodes()) {
-//       const idNumOfTarget = playerCardPlaceholders[i].id[1];
-
-//       if (deck.length < 11 && currentPlayer === 2) {
-//         playerCardPlaceholders[i].appendChild(cardEle);
-//         gameState[currentPlayer][idNumOfTarget].push(cardDrawn);
-//       } else {
-//         playerCardPlaceholders[i].appendChild(cardEle);
-//         gameState[currentPlayer][idNumOfTarget].push(cardDrawn);
-//       }
-//       break;
-//     }
-//   }
-//   deckPlaceholder.removeChild(cardParentDiv);
-
-//   removeAndAddEvents();
-
-//   timeLeft = 100;
-
-//   if (deck.length !== 0) {
-//     startTimer();
-//   } else {
-//     let pokerHandsP1 = gameState[1];
-//     let pokerHandsP2 = gameState[2];
-
-//     const board = document.querySelector(".board");
-//     const winLoseColEle = document.createElement("div");
-//     winLoseColEle.className = "win-lose-col";
-
-//     // a poker hand always has a lenght of 5
-//     p1Record = pokerHandsP1.map((handP1, i) => {
-//       record = compareHands(handP1, pokerHandsP2[i]);
-//       const winLoseEle = document.createElement("p");
-//       winLoseEle.className = "win-lose-container";
-//       winLoseEle.innerText = record;
-//       winLoseColEle.appendChild(winLoseEle);
-
-//       return record;
-//     });
-
-//     const referenceNode = board.childNodes[1];
-
-//     board.insertBefore(winLoseColEle, referenceNode);
-
-//     let winCount = 0;
-//     let loseCount = 0;
-
-//     p1Record.forEach((record) => {
-//       if (record === "Win") winCount++;
-//       if (record === "Lose") loseCount++;
-//     });
-
-//     let resultPlayerOne;
-
-//     if (winCount === loseCount) resultPlayerOne = "Tied";
-//     if (winCount > loseCount) resultPlayerOne = "Won";
-//     if (winCount < loseCount) resultPlayerOne = "Lost";
-
-//     turnEl.innerText = `Player 1 has ${resultPlayerOne} the game.`;
-//   }
-// }
 
 function doesAllHaveAChild() {
   const cardPlaceholders = document.querySelectorAll(
