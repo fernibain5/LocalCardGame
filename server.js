@@ -133,7 +133,7 @@ socketServer.on("connection", (socket) => {
     socket.emit("player-number", playerIndex);
     console.log(`Player ${playerIndex} has connected to room ${roomId}`);
 
-    socket.broadcast.to(roomId).emit("player-connection", playerIndex);
+    socket.broadcast.to(roomId).emit("player-connection", { playerIndex, connected: true });
     console.log("join room successful");
   });
   // Handle disconnect
@@ -141,15 +141,32 @@ socketServer.on("connection", (socket) => {
     const roomId = socket.roomId;
     const gameState = gameStates[roomId];
     const connection = connections[roomId];
+    const countdown = countdowns[roomId];
+    const timer = timers[roomId];
+
     const playerIndex = socket.playerIndex;
     console.log(`Player ${playerIndex} disconnected from room ${roomId}`);
-    gameState.players[playerIndex] = null;
-    connection[playerIndex] = null;
+    if (gameState) {
+      gameState.players[playerIndex] = null;
+      gameState.deck = createDeck()
+      connection[playerIndex] = null;
 
-    if (gameState.players.every((player) => player === null)) {
-      delete gameState;
-      delete connection;
+
+      // Check if the room is full
+      if (connections[roomId].every((conn) => conn === null)) {
+        console.log("Deleting game");
+        delete gameState;
+        delete connection;
+        delete countdown;
+        delete timers;
+        return;
+      }
+
     }
+
+    // if (gameState.players.every((player) => player === null)) {
+
+    // }
 
     socket.broadcast.to(roomId).emit("player-connection", playerIndex);
   });
@@ -170,8 +187,9 @@ socketServer.on("connection", (socket) => {
     for (const i in connection) {
       connection[i] === null
         ? players.push({ connected: false, ready: false })
-        : players.push({ connected: true, ready: connections[i] });
+        : players.push({ connected: true, ready: connection[i] });
     }
+    console.log({ players });
     socket.emit("check-players", players);
   });
   // Draw user Initial 5 Cards
@@ -303,6 +321,10 @@ socketServer.on("connection", (socket) => {
     clearInterval(timers[roomId]);
   });
   socket.on("who-wins", () => {
+    const roomId = socket.roomId;
+    const gameState = gameStates[roomId];
+    const connection = connections[roomId];
+    const playerIndex = socket.playerIndex;
     console.log({ players: gameState.players });
     player1Hands = gameState.players[0].hands;
     player2Hands = gameState.players[1].hands;
@@ -323,8 +345,10 @@ socketServer.on("connection", (socket) => {
     socket.broadcast.to(roomId).emit("display-reset-btn");
   });
   socket.on("new-game", () => {
-    connections[0] = null;
-    connections[1] = null;
+    const roomId = socket.roomId;
+    const connection = connections[roomId];
+    connection[0] = null;
+    connection[1] = null;
 
     gameState.deck = createDeck();
   });

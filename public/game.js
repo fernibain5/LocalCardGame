@@ -48,7 +48,14 @@ function startMultiPlayer() {
   const socket = io();
   socket.emit("joinRoom", roomId);
 
-  readyBtn.addEventListener("click", () => playMulti(socket));
+  readyBtn.addEventListener("click", () => {
+    if (!ready) {
+      socket.emit("player-ready");
+      ready = true;
+      playerReady(currentPlayer);
+      playMulti(socket);
+    }
+  });
 
   //Get your player number
   socket.on("player-number", (num) => {
@@ -67,9 +74,14 @@ function startMultiPlayer() {
   });
 
   socket.on("check-players", (players) => {
-    players.forEach((p, i) => {
-      if (p.connected) playerConnectedOrDisconnected(i);
-      if (p.ready) {
+    console.log(players);
+    players.forEach((player, i) => {
+      if (player.connected) playerConnectedOrDisconnected(i);
+      if (player.connected && currentPlayer === i) {
+        if (player)
+          playBtn.removeEventListener("click", startMultiPlayer)
+      }
+      if (player.ready) {
         playerReady(i);
         if (i !== currentPlayer) enemyReady = true;
       }
@@ -84,6 +96,7 @@ function startMultiPlayer() {
 
   socket.on("enemy-ready", (num) => {
     enemyReady = true;
+    console.log({ enemyReady });
     playerReady(num);
     if (ready) playMulti(socket);
   });
@@ -285,13 +298,17 @@ function updateTimer() {
   document.getElementById("timer").innerHTML = timer;
 }
 
-function playerConnectedOrDisconnected(num) {
-  let player = `.p${parseInt(num) + 1}`;
+function playerConnectedOrDisconnected(connectionObj) {
+  console.log(connectionObj["playerIndex"]);
+  let playerNum = parseInt(connectionObj["playerIndex"])
+  console.log({ playerNum });
+  let player = `.p${playerNum + 1}`;
   let spanConnection = document.querySelector(`${player} .connected span`);
   spanConnection.classList.toggle("green");
-  if (parseInt(num) === currentPlayer) {
+  if (playerNum === currentPlayer) {
     document.querySelector(player).style.fontWeight = "bold";
   }
+  if (connectionObj.connected === false) playerReady(playerNum)
 }
 
 function dropWrapper(socket) {
@@ -356,13 +373,14 @@ function drop(e, socket) {
 
 function playMulti(socket) {
   if (isGameOver) return;
-  if (!ready) {
-    socket.emit("player-ready");
-    ready = true;
-    playerReady(currentPlayer);
-  }
+  // if (!ready) {
+  //   socket.emit("player-ready");
+  //   ready = true;
+  //   playerReady(currentPlayer);
+  // }
 
   if (enemyReady) {
+    console.log({ enemyReady });
     if (isGameJustStarted === true) {
       createPlayersBoard(socket);
 
@@ -407,6 +425,7 @@ function playMulti(socket) {
 }
 
 function createPlayersBoard(socket) {
+  console.log("creating board");
   // Creates two players boards
   for (let i = 0; i < 2; i++) {
     let playerBoard = document.createElement("div");
