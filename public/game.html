@@ -10,7 +10,6 @@
   </head>
   <body>
     <h1 id="turn">Player 1</h1>
-    <div class="container-row"></div>
     <h2>Time remaining: <span id="timer">10</span></h2>
     <button id="play">Play</button>
     <button id="ready-btn">Ready</button>
@@ -28,7 +27,9 @@
       <div class="ready">Ready <span></span></div>
   
     </div>
-    <div class="board" id="board"></div>
+    <div class="board" id="board">
+      <div id="deck-placeholder" class="card-placeholder"></div>
+    </div>
     <script src="/game.js"></script>
   </body>
 </html>

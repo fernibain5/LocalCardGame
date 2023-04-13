@@ -312,7 +312,7 @@ socketServer.on("connection", (socket) => {
           .to(roomId)
           .emit("change-player", gameState.currentTurn);
       }
-    }, 1000);
+    }, 10);
   });
 
   socket.on("stop-timer", () => {

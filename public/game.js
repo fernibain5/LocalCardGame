@@ -8,7 +8,7 @@ const declineSwapBtn = document.querySelector("#swap-no");
 const resetBtn = document.querySelector("#reset-btn");
 
 // Select empty deck placeholder
-const deckPlaceholder = document.querySelector(".container-row");
+const deckPlaceholder = document.querySelector("#deck-placeholder");
 
 let currentPlayer = null;
 let timer = 20;
@@ -70,11 +70,9 @@ function startMultiPlayer() {
       // Get other player status
       socket.emit("check-players");
     }
-    console.log({ num });
   });
 
   socket.on("check-players", (players) => {
-    console.log(players);
     players.forEach((player, i) => {
       if (player.connected) playerConnectedOrDisconnected(i);
       if (player.connected && currentPlayer === i) {
@@ -85,7 +83,6 @@ function startMultiPlayer() {
         playerReady(i);
         if (i !== currentPlayer) enemyReady = true;
       }
-      console.log({ players });
     });
   });
 
@@ -96,14 +93,14 @@ function startMultiPlayer() {
 
   socket.on("enemy-ready", (num) => {
     enemyReady = true;
-    console.log({ enemyReady });
     playerReady(num);
     if (ready) playMulti(socket);
   });
   socket.on("enemy-drop-card", (enemyDropObj) => {
     deckLength = enemyDropObj.deckLength;
     let enemyCardId;
-    if (deckLength > 11) {
+    if (deckLength > 11 || deckLength === 11 && currentPlayer === 0) {
+      console.log({ enemyCardDroppedId: enemyCardDrawn["id"] });
       enemyCardId = enemyCardDrawn["id"];
     } else {
       enemyCardId = `backCard${backCardCounter}`;
@@ -121,16 +118,13 @@ function startMultiPlayer() {
 
     boxes.forEach((cardPlaceholder, i) => {
       const card = draw5Obj.initialCards[i];
-      const newDiv = document.createElement("div");
-
       const newImg = document.createElement("img");
       newImg.src = `/images/${card["id"]}.webp`;
       newImg.draggable = false;
       newImg.className = "container";
-      newImg.id = cardPlaceholder["id"];
+      newImg.id = card["id"];
 
-      newDiv.appendChild(newImg);
-      cardPlaceholder.appendChild(newDiv);
+      cardPlaceholder.appendChild(newImg);
       deckLength = draw5Obj.deckLength;
     });
   });
@@ -139,18 +133,13 @@ function startMultiPlayer() {
     userCardDrawn = drawCardObj.card;
     // deckLength = drawCardObj.deckLength;
 
-    const newDiv = document.createElement("div");
-    newDiv.className = "layer1";
 
     playerCardEle = document.createElement("img");
     playerCardEle.src = `/images/${drawCardObj.card["id"]}.webp`;
     playerCardEle.draggable = true;
     playerCardEle.className = "container";
     playerCardEle.id = userCardDrawn["id"];
-
-    newDiv.appendChild(playerCardEle);
-    deckPlaceholder.appendChild(newDiv);
-
+    deckPlaceholder.appendChild(playerCardEle)
     // attach the dragstart event handler
     playerCardEle.addEventListener("dragstart", dragStart);
     deckLength = drawCardObj.deckLength;
@@ -162,23 +151,16 @@ function startMultiPlayer() {
 
     boxes.forEach((cardPlaceholder, i) => {
       const card = enemyInitialCardsObj["initialCards"][i];
-      const newDiv = document.createElement("div");
-
       const newImg = document.createElement("img");
       newImg.src = `/images/${card["id"]}.webp`;
-      newImg.draggable = false;
       newImg.className = "container";
-      newImg.id = cardPlaceholder["id"];
+      newImg.id = card["id"];
 
-      newDiv.appendChild(newImg);
-      cardPlaceholder.appendChild(newDiv);
+      cardPlaceholder.appendChild(newImg);
     });
   });
 
   socket.on("enemy-draw-card", (cardObj) => {
-    deckLength = cardObj.deckLength;
-    const newDiv = document.createElement("div");
-    newDiv.className = "layer1";
     deckLength = cardObj.deckLength;
     if (cardObj.deckLength > 11) {
       enemyCardDrawn = cardObj.card;
@@ -188,8 +170,7 @@ function startMultiPlayer() {
       newImg.className = "container";
       newImg.id = enemyCardDrawn["id"];
 
-      newDiv.appendChild(newImg);
-      deckPlaceholder.appendChild(newDiv);
+      deckPlaceholder.appendChild(newImg);
     } else {
       const backCard = document.createElement("img");
       backCard.classList.add("container");
@@ -197,9 +178,7 @@ function startMultiPlayer() {
       backCard.draggable = false;
       backCard.id = `backCard${backCardCounter}`;
 
-      newDiv.appendChild(backCard);
-      console.dir(newDiv);
-      deckPlaceholder.append(newDiv);
+      deckPlaceholder.append(backCard);
     }
   });
   socket.on("change-player", (changedPlayer) => {
@@ -222,12 +201,10 @@ function startMultiPlayer() {
         const idTarget = playerCardPlaceholders[i].id;
         playerCardPlaceholders[i].appendChild(playerCardEle);
         socket.emit("drop-card", { userCardDrawn, idTarget });
-        console.log("Drop emitted from autoplaced function");
         break;
       }
     }
 
-    console.log({ removeFrom: "auto-place", lineClass, deckLength });
     // deckPlaceholder.removeChild(cardParentEle);
 
     timer = 20;
@@ -244,11 +221,9 @@ function startMultiPlayer() {
   });
 
   socket.on("game-over", (gameState) => {
-    console.log("game over running");
     const enemyPlayerHands = gameState[`player${currentPlayer + 1}Hands`];
     const enemyPlayerIndex = (currentPlayer + 1) % 2;
     const results = gameState["results"];
-    console.log({ enemyPlayerHands, enemyPlayerIndex, results });
     const winLoseColEle = document.createElement("div");
     winLoseColEle.className = "win-lose-col";
 
@@ -298,17 +273,15 @@ function updateTimer() {
   document.getElementById("timer").innerHTML = timer;
 }
 
-function playerConnectedOrDisconnected(connectionObj) {
-  console.log(connectionObj["playerIndex"]);
-  let playerNum = parseInt(connectionObj["playerIndex"])
-  console.log({ playerNum });
+function playerConnectedOrDisconnected(num) {
+  let playerNum = parseInt(num)
   let player = `.p${playerNum + 1}`;
   let spanConnection = document.querySelector(`${player} .connected span`);
   spanConnection.classList.toggle("green");
   if (playerNum === currentPlayer) {
     document.querySelector(player).style.fontWeight = "bold";
   }
-  if (connectionObj.connected === false) playerReady(playerNum)
+
 }
 
 function dropWrapper(socket) {
@@ -343,7 +316,6 @@ function drop(e, socket) {
 
     const idTarget = target.id;
     socket.emit("drop-card", { userCardDrawn, idTarget });
-    console.log("Drop emitted from drop function");
 
     // get the draggable element
     const id = e.dataTransfer.getData("text/plain");
@@ -367,7 +339,6 @@ function drop(e, socket) {
   // }
   else {
     alert("Invalid Move");
-    console.log({ currentLine, lineClass, targetClasslist: target.classList });
   }
 }
 
@@ -380,7 +351,6 @@ function playMulti(socket) {
   // }
 
   if (enemyReady) {
-    console.log({ enemyReady });
     if (isGameJustStarted === true) {
       createPlayersBoard(socket);
 
@@ -392,11 +362,12 @@ function playMulti(socket) {
         socket.emit("who-wins");
       } else if (deckLength <= 2) {
         socket.emit("stop-timer");
-        console.log({ deckLength });
         socket.emit("draw-card");
         displaySwapDiv.style.display = "inline-block";
 
         confirmSwapBtn.addEventListener("click", () => {
+          timerRunning = true;
+
           displaySwapDiv.style.display = "none";
         });
 
@@ -425,10 +396,10 @@ function playMulti(socket) {
 }
 
 function createPlayersBoard(socket) {
-  console.log("creating board");
   // Creates two players boards
   for (let i = 0; i < 2; i++) {
-    let playerBoard = document.createElement("div");
+    console.log({ currentPlayer });
+    const playerBoard = document.createElement("div");
     playerBoard.className = "player-board";
     // Creates 5 drop-targets poker hands per player
     for (let h = 0; h < 5; h++) {
@@ -438,13 +409,30 @@ function createPlayersBoard(socket) {
       for (var j = 0; j < 5; j++) {
         let lineNumber;
         let id;
-        if (i === 0) {
-          lineNumber = `line${5 - h}${i + 1}`;
-          id = `${j}${4 - h}p${i + 1}`;
+
+        if (currentPlayer === 1) {
+          if (i === 0) {
+            lineNumber = `line${5 - j}1`;
+            id = `${4 - j}${h}p1`;
+          }
+
+          if (i === 1) {
+            lineNumber = `line${j + 1}2`;
+            id = `${j}${h}p2`;
+          }
+
         } else {
-          lineNumber = `line${h + 1}${i + 1}`;
-          id = `${j}${h}p${i + 1}`;
+          if (i === 0) {
+            lineNumber = `line${5 - j}2`;
+            id = `${4 - j}${h}p2`;
+          }
+
+          if (i === 1) {
+            lineNumber = `line${j + 1}1`;
+            id = `${j}${h}p1`;
+          }
         }
+
         let placeholder = document.createElement("div");
 
         placeholder.className = `card-placeholder ${lineNumber}`;
@@ -458,9 +446,12 @@ function createPlayersBoard(socket) {
       }
       playerBoard.appendChild(dropTarget);
     }
-    board.appendChild(playerBoard);
+    if (i === 0) board.insertBefore(playerBoard, board.firstChild)
+    if (i === 1) board.appendChild(playerBoard);
   }
 }
+
+function createPlayerBoard() { }
 
 function dragStart(e) {
   e.dataTransfer.setData("text/plain", e.target.id);
